@@ -18,16 +18,22 @@ In the following steps, unless otherwise specified, you should run the scripts i
 
 ### 1. Neural network
 
+**This code must be run to create the Neural network which is needed for running the inference.**
+
 1. In the `src/nn` folder, you will find the code to generate the data for the neural network model. First run the script `nn_data_generation_run.jl` to generate the data. This will populate the `data/tcl_nn` folder with the data files. 
 2. Next, run the script `train_nn.jl` to train the neural network model. This will save the trained model in the `data/tcl_nn` folder.
 
 ### 2. Data generation and inference for synthetic dataset
+
+**Note: Steps 1 and 2 should not need to be run as the data already exist in the data folder.**
 
 1. To generate the synthetic dataset, you will need to run the script `src/generate_data_R0.jl`. This script will generate a synthetic dataset of viral load trajectories and save it in the `data` folder. 
 2. Next, run the script `src/inference/process_sim_data.jl` to process the data. 
 3. Now we can run the inference on the synthetic dataset. Run the script `src/within_host_inference_run.jl`. This will run the within-host model on the synthetic dataset and save the results in a csv in the `results` folder.
 
 ### 3. Data processing and inference for NBA dataset
+
+**Note: Steps 1 and 2 should not need to be run as the data already exist in the data folder.**
 
 1. The NBA dataset will be available in the `data/nba` folder. If you want to use a different dataset, you can replace the files in this folder with your own data.
 2. We run `src/inference/process_nba_data.jl` script to process the NBA dataset. This will save the processed data in the `data/nba` folder.
