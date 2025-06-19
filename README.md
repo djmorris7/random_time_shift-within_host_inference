@@ -11,7 +11,7 @@ Once you have Julia installed, you can clone this repository and set up the envi
 2. Activate the julia environment. This will start Julia with the project environment set to the current directory. In the Julia REPL, you can use the command `] activate .` in the Julia REPL. This will activate the environment defined in the `Project.toml` and `Manifest.toml` files in the current directory. If you are using Visual Studio Code, you can also open the Command Palette (Cmd+Shift+P on macOS or Ctrl+Shift+P on Windows/Linux) and type "Julia: Activate Environment" to activate the environment. If you press `]`, you should see a prompt like `(within_host_inference) pkg>`, indicating that you are in the correct environment.
 3. Instantiate the environment. To do this, run the command `] instantiate` in the Julia REPL. This will read the `Project.toml` and `Manifest.toml` files in the current directory and install all the required packages. This should install all the required packages specified in the `Project.toml` and `Manifest.toml` files.
 
-## Tips for running the code
+## Running the code
 
 We recommend using the [Visual Studio Code](https://code.visualstudio.com/) editor with the [Julia extension](https://marketplace.visualstudio.com/items?itemName=julialang.language-julia) for a better development experience.
 In the following steps, unless otherwise specified, you should run the scripts in sections, i.e. in the **notebook** style way. This can be done by using `cmd+shift+enter` in VS Code.
