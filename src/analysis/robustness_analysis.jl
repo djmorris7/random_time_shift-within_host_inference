@@ -62,22 +62,6 @@ posterior_summaries[:, :true_value] = [
     get(truth_map, string(p), missing) for p in posterior_summaries.parameter
 ]
 
-# 3) Compute biases (posterior - truth)
-posterior_summaries[:, :bias_mean] = posterior_summaries.mean .- posterior_summaries.true_value
-posterior_summaries[:, :rel_bias_mean] =
-    (posterior_summaries.mean .- posterior_summaries.true_value) ./ posterior_summaries.true_value
-
-##
-
-biases = Dict()
-rel_biases = Dict()
-for sym in hyper_param_symbols
-    biases[sym] = mean(posterior_summaries[posterior_summaries.parameter .== sym, "bias_mean"])
-    rel_biases[sym] = mean(
-        posterior_summaries[posterior_summaries.parameter .== sym, "rel_bias_mean"]
-    )
-end
-
 ##
 
 using CairoMakie, DataFrames
@@ -94,13 +78,6 @@ n_cols = 3
 size_inches = (7.5, 5.5)
 size_pt = size_inches .* 72
 fig = Figure(size = size_pt, fontsize = 10, dpi = 300, sharex = true, sharey = true, linewidth = 1)
-
-# axs = [Axis(fig[i, j]; ax_kwargs...) for i in 1:2, j in 1:2]
-# axs[1].title = L"(A) $R_0$"
-# axs[2].title = L"(B) $\delta$"
-# axs[3].title = L"(C) $\rho$"
-# axs[4].title = L"(D) $t_0$"
-
 # Map true values
 truth_map = Dict(string(n) => true_param_values[1, n] for n in names(true_param_values))
 
@@ -149,31 +126,21 @@ save(fig_loc * "sim_posteriors_coverage.pdf", fig, pt_per_unit = 1.0)
 
 ##
 
-# loc = results_dir("sim_samples/dataset_31/")
-
-# df = vcat([CSV.read(loc * "samples_$i.csv", DataFrame)[5000:end, :] for i in 1:3]...)
-
-# lines(df.σ_πv)
-
-##
-
 posterior_summaries.covers =
     (posterior_summaries.true_value .>= posterior_summaries[:, "0.025"]) .&&
     (posterior_summaries.true_value .<= posterior_summaries[:, "0.975"])
 
 coverage = Dict(s => 0.0 for s in hyper_param_symbols)
-interval_widths = Dict(s => 0.0 for s in hyper_param_symbols)
-minimum_interval_widths = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
-maximum_interval_widths = Dict(s => 0.0 for s in hyper_param_symbols)
+interval_widths_avg = Dict(s => 0.0 for s in hyper_param_symbols)
+interval_widths_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
 biases = Dict(s => 0.0 for s in hyper_param_symbols)
 
 for (k, v) in coverage
     df_tmp = filter(r -> r.parameter == string(k), posterior_summaries)
     coverage[k] = sum(df_tmp.covers) / nrow(df_tmp)
     widths = df_tmp[:, "0.975"] .- df_tmp[:, "0.025"]
-    interval_widths[k] = mean(widths)
-    minimum_interval_widths[k] .= round.(quantile(widths, (0.025, 0.975)), digits = 3)
-    # maximum_interval_widths[k] = quantile(widths, 0.975)
+    interval_widths_avg[k] = mean(widths)
+    interval_widths_ci[k] .= round.(quantile(widths, (0.025, 0.975)), digits = 3)
 
     biases[k] = (mean(df_tmp.mean) - df_tmp.true_value[1]) / df_tmp.true_value[1]
 end
@@ -181,15 +148,6 @@ end
 ##
 
 coverage
-interval_widths
-minimum_interval_widths
-maximum_interval_widths
-
-##
-
-joint_params_df = DataFrame()
-
-for i in 1:100
-    df_tmp = CSV.read(data_dir("sims/covid_parameters_$i.csv"), DataFrame)
-    append!(joint_params_df, df_tmp)
-end
+interval_widths_avg
+interval_widths_ci
+biases
