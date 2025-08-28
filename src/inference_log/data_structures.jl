@@ -28,13 +28,13 @@ end
 @with_kw mutable struct SharedParams
     """Struct for storing the shared parameters for the within-host model."""
     μ_R₀::Float64
-    σ_R₀::Float64
+    log_σ_R₀::Float64
     μ_k::Float64
     σ_k::Float64
     μ_δ::Float64
-    σ_δ::Float64
+    log_σ_δ::Float64
     μ_πv::Float64
-    σ_πv::Float64
+    log_σ_πv::Float64
     μ_c::Float64
     σ_c::Float64
     κ::Float64

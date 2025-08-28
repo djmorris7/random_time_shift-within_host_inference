@@ -44,6 +44,19 @@ function tcl_deterministic!(dx, x, pars, t; S0 = 8e7)
     return nothing
 end
 
+function stop_condition(u, t, integrator)
+    # Check if some small time has elapsed before terminating (to prevent instant termination)
+    if t > 1
+        return u[4] - 1
+    else
+        return 1.0
+    end
+end
+
+function stop_affect!(integrator)
+    return terminate!(integrator)
+end
+
 function tcl_deterministic(x, pars, t; S0 = 8e7)
     """
     The ODE system for the within-host model.
@@ -147,10 +160,13 @@ end
 
 # --- Likelihood and priors ---
 function measurement_model(y, μ, κ; lod = 2.65761, epsilon = 1e-3)
-    if y <= lod
-        return logcdf(Normal(μ, κ), lod)
-    else
+    if y > lod
         return logpdf(Normal(μ, κ), y)
+    elseif y <= lod
+        # These should be clipped to lod
+        # return max/
+        # println(logcdf(Normal(μ, κ), y), " ", logcdf(Normal(μ, κ), lod))
+        return logcdf(Normal(μ, κ), lod)
     end
 end
 
@@ -192,24 +208,7 @@ function get_μ(t, τ, sol)
     end
 end
 
-# t_inf = 3.0
-# observation_times = 0:1:30
-# τ = -3.0
-# tspan = (t_inf, 40.0)
-# prob = ODEProblem(tcl_deterministic, Z0_static, tspan, vl_model_pars)
-# sol = solve(prob, Tsit5(); save_idxs = 4)
-
-# fig = Figure()
-# ax = Axis(fig[1, 1])
-# plot!(ax, sol.t .- τ, log10p0.(sol.u))
-# plot!(ax, observation_times, m)
-# xlims!(ax, 0, 20)
-# vlines!(ax, t_inf)
-# display(fig)
-
-# m = [get_μ(t, τ, sol) for t in observation_times]
-
-function path_likelihood(τ, κ, infection_time, individual_data::IndividualData, sol)
+function path_likelihood(τ, κ, infection_time, individual_data::IndividualData, sol, lod)
     """
     The log likelihood for a vl trajectory given a time shift τ.
     """
@@ -219,7 +218,7 @@ function path_likelihood(τ, κ, infection_time, individual_data::IndividualData
 
     for (t, y) in zip(obs_times, vl)
         μ = get_μ(t, τ, sol)
-        pdf_val += measurement_model(y, μ, κ)
+        pdf_val += measurement_model(y, μ, κ; lod = lod)
     end
 
     return pdf_val
@@ -244,11 +243,12 @@ function create_laplace_approx_func(
     @unpack sol, LOD = M
 
     # Closures for computing the negative log likelihood and its derivatives
-    neg_ℓ = τ -> -path_likelihood(τ, κ, infection_time, individual_data, sol)
+    neg_ℓ = τ -> -path_likelihood(τ, κ, infection_time, individual_data, sol, M.LOD)
     neg_ℓ′ = τ -> ForwardDiff.derivative(neg_ℓ, τ)
     neg_ℓ′′ = τ -> ForwardDiff.derivative(neg_ℓ′, τ)
     # Maximum of the timeshift dist should be around 0, so optimize in the vincinity of 0
     opt = Optim.optimize(neg_ℓ, -5, 5)
+    # opt = Optim.optimize(neg_ℓ, neg_ℓ′, -5.0, 5.0, autodiff = :forward)
     τ_0 = opt.minimizer
     ℓ_0 = -opt.minimum
     v2 = max(1e-8, 1.0 / neg_ℓ′′(τ_0))
@@ -342,7 +342,9 @@ function laplace_approx_only_likelihood(
 
     ode_model_pars = (R₀, k, δ, πv, c)
     M.prob = remake(M.prob; p = ode_model_pars, tspan = (infection_time, infection_time + 40.0))
-    M.sol = solve(M.prob, Tsit5(); save_idxs = 4, reltol = 1e-4)
+    # M.sol = solve(M.prob, Tsit5(); save_idxs = 4, reltol = 1e-4)
+    M.sol = solve(M.prob, Tsit5(); save_idxs = 4)
+
     p1_τ, early_return = get_τ_prior_nn(θ, M)
     if early_return
         return -Inf
@@ -373,6 +375,7 @@ function exact_likelihood(
     ode_model_pars = (R₀, k, δ, πv, c)
     M.prob = remake(M.prob; p = ode_model_pars, tspan = (infection_time, infection_time + 40.0))
     M.sol = solve(M.prob, Tsit5(); save_idxs = 4, reltol = 1e-4)
+    # M.sol = solve(M.prob, Tsit5(); save_idxs = 4)
     p1_τ, early_return = get_τ_prior_nn(θ, M)
 
     if early_return
@@ -380,7 +383,7 @@ function exact_likelihood(
     end
     # p2_τ = laplace_approx_likelihood(θ, individual_data, ϕ, M)
     q = solve_exact_extinction_probs(ode_model_pars)
-    p2_τ = τ -> path_likelihood(τ, κ, infection_time, individual_data, M.sol)
+    p2_τ = τ -> path_likelihood(τ, κ, infection_time, individual_data, M.sol, M.LOD)
 
     p_τ = x -> exp(p1_τ(x) + p2_τ(x))
 
@@ -402,11 +405,12 @@ function create_laplace_approx_full_func(
     @unpack sol, LOD = M
 
     # Closures for computing the negative log likelihood and its derivatives
-    neg_ℓ = τ -> -path_likelihood(τ, κ, infection_time, individual_data, sol) - p1_τ(τ)
+    neg_ℓ = τ -> -path_likelihood(τ, κ, infection_time, individual_data, sol, M.LOD) - p1_τ(τ)
     neg_ℓ′ = τ -> ForwardDiff.derivative(neg_ℓ, τ)
     neg_ℓ′′ = τ -> ForwardDiff.derivative(neg_ℓ′, τ)
     # Maximum of the timeshift dist should be around 0, so optimize in the vincinity of 0
     opt = Optim.optimize(neg_ℓ, -5, 5)
+    # opt = Optim.optimize(neg_ℓ, 0.0, autodiff = :forward)
     τ_0 = opt.minimizer
     ℓ_0 = -opt.minimum
     H = sqrt(max(1e-8, 1.0 / neg_ℓ′′(τ_0)))
@@ -519,7 +523,6 @@ function laplace_approx_full_likelihood(
     # Using a smaller relative tolerance to ensure that the approximation does not become
     # discontinuous through numerical instabilities.
     M.sol = solve(M.prob, Tsit5(); save_idxs = 4, reltol = 1e-4)
-    # M.sol = solve(M.prob, Tsit5(); save_idxs = 4)
     p1_τ, early_return = get_τ_prior_nn(θ, M)
     if early_return
         return -Inf
@@ -527,13 +530,10 @@ function laplace_approx_full_likelihood(
 
     p_τ = laplace_approx(θ, individual_data, ϕ, M, p1_τ)
     # q = calculate_extinction_prob(ode_model_pars)
-    q = solve_exact_extinction_probs(ode_model_pars)
+    # q = solve_exact_extinction_probs(ode_model_pars)
 
-    # println(q1, " ", q)
-
-    # return p_τ
-
-    return log(1 - q) + p_τ
+    # return log(1 - q) + p_τ
+    return p_τ
 end
 
 function likelihood(θ::Params, individual_data::IndividualData, ϕ::SharedParams, M::ModelInternals)
@@ -572,27 +572,15 @@ function individual_prior(
     priors dictionary.
     """
 
+    @unpack_SharedParams ϕ
+    @unpack_Params θ
+
     log_p = 0.0
 
-    for x in fieldnames(Params)
-        if !(x in keys(priors)) || fixed_params[x]
-            continue
-        end
-        log_p_tmp = 0.0
-
-        x_val = getfield(θ, x)
-        prior = priors[x]
-
-        if x == :infection_time
-            a, b = θ.infection_time_range
-            log_p_tmp += logpdf(prior, x_val)
-            # log_p_tmp += logpdf(prior(a, b), x_val)
-        elseif x ∈ [:z_R₀, :z_δ, :z_πv]
-            log_p_tmp += logpdf(prior, x_val)
-        end
-
-        log_p += log_p_tmp
-    end
+    log_p += logpdf(priors[:z_R₀], z_R₀)
+    log_p += logpdf(priors[:z_δ], z_δ)
+    log_p += logpdf(priors[:z_πv], z_πv)
+    log_p += logpdf(priors[:infection_time], infection_time)
 
     return log_p
 end
@@ -605,22 +593,17 @@ function shared_prior(
     object and uses symbols to easily index into the hyper_priors dictionary.
     """
 
+    @unpack_SharedParams ϕ
+
     log_p = 0.0
 
-    for x in fieldnames(SharedParams)
-        if !(x in keys(hyper_priors)) || fixed_params[x]
-            continue
-        end
-        log_p_tmp = 0.0
-
-        # Get appropriate value and prior
-        x_val = getfield(ϕ, x)
-        prior = hyper_priors[x]
-
-        log_p_tmp = logpdf(prior, x_val)
-
-        log_p += log_p_tmp
-    end
+    log_p += logpdf(hyper_priors[:μ_R₀], μ_R₀)
+    log_p += logpdf(hyper_priors[:σ_R₀], exp(log_σ_R₀))
+    log_p += logpdf(hyper_priors[:μ_δ], μ_δ)
+    log_p += logpdf(hyper_priors[:σ_δ], exp(log_σ_δ))
+    log_p += logpdf(hyper_priors[:μ_πv], μ_πv)
+    log_p += logpdf(hyper_priors[:σ_πv], exp(log_σ_πv))
+    log_p += logpdf(hyper_priors[:κ], κ)
 
     return log_p
 end

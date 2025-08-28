@@ -1,5 +1,17 @@
 # include("../inference/within_host_inference.jl")
-include("../inference/within_host_inference.jl")
+include("../inference_log/within_host_inference.jl")
+
+function get_df_samples_ind(df_samples, id)
+    df_samples_ind = DataFrame()
+    df_samples_ind.R₀ = df_samples[:, "z_R₀_$id"] .* exp.(df_samples.σ_R₀) .+ df_samples.μ_R₀
+    df_samples_ind.k .= μ_k
+    df_samples_ind.δ = df_samples[:, "z_δ_$id"] .* exp.(df_samples.σ_δ) .+ df_samples.μ_δ
+    df_samples_ind.πv = df_samples[:, "z_πv_$id"] .* exp.(df_samples.σ_πv) .+ df_samples.μ_πv
+    df_samples_ind.c .= μ_c
+    df_samples_ind.infection_time = df_samples[:, "infection_time_$id"]
+
+    return df_samples_ind
+end
 
 function get_gg_pars_nn(pars, Z0_bp, nn_func; S0 = S0)
     """

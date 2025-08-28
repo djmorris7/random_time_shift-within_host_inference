@@ -1,4 +1,4 @@
-include("../inference/within_host_inference.jl")
+include("../inference_log/within_host_inference.jl")
 include("results.jl")
 include("../plotting.jl")
 
@@ -6,8 +6,6 @@ include("../plotting.jl")
 
 Random.seed!(2023)
 (data, id_mapping) = get_cleaned_data("data/nba/nba_data_clean.csv")
-
-# scatter(data[N].obs_times, data[N].vl, color = :black)
 
 N = length(data)
 
@@ -21,9 +19,15 @@ end
 
 ##
 
-# Now check to see that extinction prob calculation is equal no matter the way we get it
+# Initial conditions
 S0 = Int(8e7)
-# Individual parameters (means)
+E0 = 1
+I0 = 0
+V0 = 0
+Z0 = [S0 - (E0 + I0), E0, I0, V0]
+Z0_bp = Z0[2:end]
+
+# Individual parameters (means) to set up the ODE problem
 μ_R₀ = df_true_hyper_pars[1, "μ_R₀"]
 μ_k = df_true_hyper_pars[1, "μ_k"]
 μ_δ = df_true_hyper_pars[1, "μ_δ"]
@@ -33,14 +37,9 @@ mean_pars = [μ_R₀, μ_k, μ_δ, μ_πv, μ_c]
 
 κ = df_true_hyper_pars[1, "κ"]
 
-E0 = 1
-I0 = 0
-V0 = 0
-
-Z0 = [S0 - (E0 + I0), E0, I0, V0]
-
 ##
 
+# Initialise ODE solver to check it works
 obs_t = 50
 tspan = (0, 50)
 
@@ -52,47 +51,21 @@ plot(sol)
 
 ##
 
+# Other bits for simulator (i.e. neural net)
+
 pars0 = deepcopy(mean_pars)
 nn = load_nn()
-
-## Testing the likelihood for a single individual
-S0 = Z0[1]
-Z0_bp = Z0[2:end]
 LOD = ct_to_vl(40.0)
-
-## Testing the likelihood for a single individual
-
 σ_R₀, σ_k, σ_δ, σ_πv, σ_c = df_true_hyper_pars[1, [:σ_R₀, :σ_k, :σ_δ, :σ_πv, :σ_c]]
 
 ##
 
-infection_time_ranges = [zeros(2) for _ in range(1, N)]
-for (i, dat) in enumerate(data)
-    obs_peak_timing = dat.obs_times[findmax(dat.vl)[2]]
-
-    earliest_timing = obs_peak_timing - 20
-    latest_timing = obs_peak_timing + 10
-
-    infection_time_ranges[i] = [earliest_timing, latest_timing]
-end
-
-##
-
-# df_samples = CSV.read(results_dir("samples_nba.csv"), DataFrame)
-df_samples = [CSV.read(results_dir("samples_nba_$i.csv"), DataFrame) for i in 1:4]
-burnin = 10000
-thin = 10
-df_samples = [df_samples[i][burnin:thin:end, :] for i in 1:4]
+# Read in posterior samples
+df_samples = [CSV.read(results_dir("samples_nba_$i.csv"), DataFrame) for i in 1:3]
 df_samples = vcat(df_samples...)
 samples = Matrix(df_samples)
-# samples = Matrix(df_samples)
 
-## --- Sample new realisations for a known individual ---
-
-# id = 18
-id = 159
-id = 125
-# id = 14
+##
 
 function get_df_samples_ind(df_samples, id)
     df_samples_ind = DataFrame()
@@ -106,129 +79,19 @@ function get_df_samples_ind(df_samples, id)
     return df_samples_ind
 end
 
-# get params
-# df_samples_ind = extract_individual_params(df_samples, id)
+# Test param getter and simulator for a single individual
+id = 1
 df_samples_ind = get_df_samples_ind(df_samples, id)
 κ_post = df_samples[:, :κ]
 
 T = 100
 n_sims = 3000
-# df_samples_ind.πv .= 3.0
-# df_samples_ind.δ .= 1.5
-# df_samples_ind.πv *
 post_sims = ppc_simulation(df_samples_ind, Z0_bp, nn, prob, κ_post, n_sims, T; t0 = -20, Δt = 0.1)
-
 post_sims_summ = summarise_ppc_sims(post_sims)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, data[id].obs_times, data[id].vl, color = :black)
-lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = :red)
-band!(
-    ax, post_sims_summ["t"], post_sims_summ["lower"], post_sims_summ["upper"], color = (:red, 0.4)
-)
-band!(ax, post_sims_summ["t"], post_sims_summ["bottom"], post_sims_summ["top"], color = (:red, 0.4))
-# lines!(ax, prior_sims_summ["t"], prior_sims_summ["median"], color = :green)
-# band!(
-#     ax,
-#     prior_sims_summ["t"],
-#     prior_sims_summ["lower"],
-#     prior_sims_summ["upper"],
-#     color = (:green, 0.4)
-# )
-# xlims!(ax, data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-xlims!(ax, -14, 14)
-display(fig)
+## --- Sample multiple people at onece ---
 
-hist(df_samples_ind.infection_time, bins = 50)
-
-##
-
-nsamples_prior = 10_00
-prior_samples = zeros(nsamples_prior, 6)
-
-j = 1
-
-for (i, symbol) in enumerate(fieldnames(Params))
-    symbol ∈ [:infection_time_range, :z_R₀, :z_δ, :z_πv] && continue
-
-    if symbol == :infection_time
-        prior_samples[:, j] = rand(Uniform(infection_time_ranges[id]...), nsamples_prior)
-    elseif symbol == :k
-        prior_samples[:, j] .= μ_k
-    elseif symbol == :c
-        prior_samples[:, j] .= μ_c
-    else
-        μ = rand(hyper_priors[string_to_symbol("μ_", symbol)], nsamples_prior)
-        σ = rand(hyper_priors[string_to_symbol("σ_", symbol)], nsamples_prior)
-        prior_samples[:, j] = rand.(Truncated.(Normal.(μ, σ), 0.01, 100))
-    end
-    j += 1
-end
-
-κ_prior = rand(hyper_priors[:κ], nsamples_prior)
-
-prior_samples = DataFrame(prior_samples, [:R₀, :k, :δ, :πv, :c, :infection_time])
-
-prior_sims = ppc_simulation(prior_samples, Z0_bp, nn, prob, κ_prior, n_sims, T; t0 = -20, Δt = 0.1)
-
-##
-
-post_sims_summ = summarise_ppc_sims(post_sims)
-prior_sims_summ = summarise_ppc_sims(prior_sims)
-
-##
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, data[id].obs_times, data[id].vl, color = :black)
-lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = :red)
-band!(
-    ax, post_sims_summ["t"], post_sims_summ["lower"], post_sims_summ["upper"], color = (:red, 0.4)
-)
-band!(ax, post_sims_summ["t"], post_sims_summ["bottom"], post_sims_summ["top"], color = (:red, 0.4))
-# lines!(ax, prior_sims_summ["t"], prior_sims_summ["median"], color = :green)
-# band!(
-#     ax,
-#     prior_sims_summ["t"],
-#     prior_sims_summ["lower"],
-#     prior_sims_summ["upper"],
-#     color = (:green, 0.4)
-# )
-# xlims!(ax, data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-display(fig)
-
-##
-
-# Spaghetti plot
-
-# Random.seed!(100)
-
-fig = Figure(size = size_pt, fontsize = 12, dpi = 300)
-axs = [
-    Axis(fig[1, 1], ylabel = L"\textrm{viral load } (\log_{10})", xlabel = L"\textrm{time (days)}"),
-    Axis(fig[1, 2], ylabel = L"\textrm{viral load } (\log_{10})", xlabel = L"\textrm{time (days)}")
-]
-for i in 1:10
-    lines!(
-        axs[1],
-        prior_sims[:, 1],
-        prior_sims[:, rand(1:size(prior_sims, 2))],
-        color = :green,
-        alpha = 0.4
-    )
-    ind = rand(2:size(prior_sims, 2))
-    println(ind)
-    lines!(axs[2], post_sims[:, 1], post_sims[:, ind], color = :red, alpha = 0.4)
-end
-xlims!(axs[1], data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-xlims!(axs[2], data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-display(fig)
-
-save(fig_loc * "predictive_spaghetti.pdf", fig, pt_per_unit = 1.0)
-
-## --- Sample a few people at onece ---
-
+# Transcribed parameters from Zitzmann et al 2024 Supporting Information
 δs_zitz = [
     2.05
     0.99
@@ -373,6 +236,8 @@ ids_zitzmann = [
     3485,
     3491
 ]
+
+# Solve the Zitzmann et al models
 for (i, id) in enumerate(ids_zitzmann)
     Z0 = [S0 - (E0 + I0), E0, I0, V0]
     R₀ = βs_zitz[i] * πs_zitz[i] * S0 / (δs_zitz[i] * c)
@@ -383,53 +248,23 @@ for (i, id) in enumerate(ids_zitzmann)
     sols[id] = sol
 end
 
-# plot(sols[1].t, log10p0.(sols[1].u))
-
 ##
 
-for (i, d) in enumerate(data)
-    if length(d.vl .> LOD) <= 6
-        println(i)
-    end
-end
-
-##
-
-# ids_missing = findall(x -> x ∉ ids_zitzmann)
-
+# Get the zitzmann ids that are also in the nba data and keep the first 4
 ids_pivotal = findall(x -> x in ids_zitzmann, id_mapping)
-
 setdiff(ids_zitzmann, id_mapping[ids_pivotal])
-
 ids_zitz_pivotal = deepcopy(ids_pivotal)
-# while length(ids) < 20
-#     id_test = rand(1:N)
-#     if id_test ∉ ids
-#         push!(ids, id_test)
-#     end
-# end
-
 ids = ids_zitz_pivotal[1:4]
+
+# Add some individuals we hand picked with less data
 push!(ids, 158)
 push!(ids, 152)
 push!(ids, 150)
 push!(ids, 125)
-# push!(ids, 122)
-# push!(ids, 116)
 
 ##
 
-for (i, D) in enumerate(data)
-    fig = Figure()
-    ax = Axis(fig[1, 1], title = "{i} - $(i)")
-    plot!(ax, D.obs_times, D.vl, color = :black)
-
-    display(fig)
-end
-
-##
-
-size_inches = (7.5, 4.5)
+size_inches = (7.5, 4)
 size_pt = size_inches .* 72
 fig = Figure(size = size_pt, fontsize = 10, dpi = 300, linewidth = 1)
 
@@ -448,7 +283,6 @@ j = 1
         df_samples_ind, Z0_bp, nn, prob, κ_post, n_sims, T; t0 = -20, Δt = 0.1
     )
 
-    # prior_sims_summ = summarise_ppc_sims(prior_sims)
     post_sims_summ = summarise_ppc_sims(post_sims)
 
     lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = colors[1])
@@ -468,14 +302,12 @@ j = 1
     )
 
     if id_mapping[id] ∈ keys(sols)
-        scatter!(
+        lines!(
             ax,
             sols[id_mapping[id]].t,
             log10p0.(sols[id_mapping[id]].u),
             color = colors[2],
-            # linestyle = :dash
-            marker = :cross,
-            markersize = 4
+            linestyle = :dash
         )
     end
     j += 1
@@ -490,8 +322,6 @@ j = 1
         justification = :center,
         align = (:center, :bottom)
     )
-
-    # ax.title = "ID: $(id_mapping[id])"
 
     ylims!(ax, low = 0)
 
@@ -516,328 +346,3 @@ colgap!(fig.layout, 8)
 display(fig)
 
 save(fig_loc * "predictive_plot_multi_individuals_nba.pdf", fig, pt_per_unit = 1.0)
-
-##
-
-a = 1
-n_ax = 1
-
-@showprogress for id in eachindex(data)
-    if mod(id, 25) == 0
-        save(fig_loc * "predictive_plot_multi_individuals_$a.pdf", fig, pt_per_unit = 1.0)
-        fig = Figure(size = (575, 575), fontsize = 12, dpi = 300)
-        axs = [Axis(fig[i, j]) for i in 1:5, j in 1:5]
-        a += 1
-        n_ax = 1
-    end
-
-    df_samples_ind = extract_individual_params(df_samples, id)
-    κ_post = df_samples[:, :κ]
-
-    T = 100
-    n_sims = 500
-    post_sims = ppc_simulation(
-        df_samples_ind, Z0_bp, nn, prob, κ_post, n_sims, T; t0 = -20, Δt = 0.1
-    )
-
-    # nsamples_prior = 1000
-    # prior_samples = zeros(nsamples_prior, 6)
-
-    # for (i, symbol) in enumerate(fieldnames(Params))
-    #     symbol ∈ [:infection_time_range] && continue
-
-    #     if symbol == :infection_time
-    #         prior_samples[:, i] = rand(
-    #             Uniform(infection_time_ranges[id]...), nsamples_prior
-    #         )
-    #     elseif symbol == :k
-    #         prior_samples[:, i] .= μ_k
-    #     elseif symbol == :c
-    #         prior_samples[:, i] .= μ_c
-    #     else
-    #         μ = rand(hyper_priors[string_to_symbol("μ_", symbol)], nsamples_prior)
-    #         if symbol ∈ [:β, :k, :δ, :πv, :c]
-    #             σ = df_true_hyper_pars[1, "σ_" * string(symbol)]
-    #         else
-    #             σ = rand(hyper_priors[string_to_symbol("σ_", symbol)], nsamples_prior)
-    #         end
-    #         prior_samples[:, i] = rand.(Truncated.(Normal.(μ, σ), 0.01, 100))
-    #     end
-    # end
-
-    # κ_prior = rand(hyper_priors[:κ], nsamples_prior)
-
-    # prior_sims = ppc_simulation(
-    #     prior_samples, Z0_bp, nn_func, prob, κ_prior, n_sims, T; t0 = -20, Δt = 0.1
-    # )
-
-    # prior_sims_summ = summarise_ppc_sims(prior_sims)
-    post_sims_summ = summarise_ppc_sims(post_sims)
-
-    ax = axs[n_ax]
-
-    plot!(ax, data[id].obs_times, data[id].vl, color = :black)
-    lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = :red)
-    band!(
-        ax,
-        post_sims_summ["t"],
-        post_sims_summ["lower"],
-        post_sims_summ["upper"],
-        color = (:red, 0.4)
-    )
-    band!(
-        ax,
-        post_sims_summ["t"],
-        post_sims_summ["bottom"],
-        post_sims_summ["top"],
-        color = (:red, 0.4)
-    )
-    # lines!(ax, prior_sims_summ["t"], prior_sims_summ["median"], color = :green)
-    # band!(
-    #     ax,
-    #     prior_sims_summ["t"],
-    #     prior_sims_summ["lower"],
-    #     prior_sims_summ["upper"],
-    #     color = (:green, 0.4)
-    # )
-
-    min_t = min(-10, floor(data[id].obs_times[1] - 2))
-    max_t = max(14, ceil(data[id].obs_times[end] + 2))
-    # xlims!(ax, min_t, max_t)
-    xlims!(ax, -14, 14)
-
-    n_ax += 1
-end
-
-##
-
-@showprogress for (id, ax) in zip(ids, axs)
-    df_samples_ind = extract_individual_params(df_samples, id)
-    κ_post = df_samples[:, :κ]
-
-    T = 100
-    n_sims = 3000
-    post_sims = ppc_simulation(
-        df_samples_ind, Z0_bp, nn, prob, κ_post, n_sims, T; t0 = -20, Δt = 0.1
-    )
-
-    # nsamples_prior = 1000
-    # prior_samples = zeros(nsamples_prior, 6)
-
-    # for (i, symbol) in enumerate(fieldnames(Params))
-    #     symbol ∈ [:infection_time_range] && continue
-
-    #     if symbol == :infection_time
-    #         prior_samples[:, i] = rand(
-    #             Uniform(infection_time_ranges[id]...), nsamples_prior
-    #         )
-    #     elseif symbol == :k
-    #         prior_samples[:, i] .= μ_k
-    #     elseif symbol == :c
-    #         prior_samples[:, i] .= μ_c
-    #     else
-    #         μ = rand(hyper_priors[string_to_symbol("μ_", symbol)], nsamples_prior)
-    #         if symbol ∈ [:β, :k, :δ, :πv, :c]
-    #             σ = df_true_hyper_pars[1, "σ_" * string(symbol)]
-    #         else
-    #             σ = rand(hyper_priors[string_to_symbol("σ_", symbol)], nsamples_prior)
-    #         end
-    #         prior_samples[:, i] = rand.(Truncated.(Normal.(μ, σ), 0.01, 100))
-    #     end
-    # end
-
-    # κ_prior = rand(hyper_priors[:κ], nsamples_prior)
-
-    # prior_sims = ppc_simulation(
-    #     prior_samples, Z0_bp, nn_func, prob, κ_prior, n_sims, T; t0 = -20, Δt = 0.1
-    # )
-
-    # prior_sims_summ = summarise_ppc_sims(prior_sims)
-    post_sims_summ = summarise_ppc_sims(post_sims)
-
-    plot!(ax, data[id].obs_times, data[id].vl, color = :black)
-    lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = :red)
-    band!(
-        ax,
-        post_sims_summ["t"],
-        post_sims_summ["lower"],
-        post_sims_summ["upper"],
-        color = (:red, 0.4)
-    )
-    band!(
-        ax,
-        post_sims_summ["t"],
-        post_sims_summ["bottom"],
-        post_sims_summ["top"],
-        color = (:red, 0.4)
-    )
-    # lines!(ax, prior_sims_summ["t"], prior_sims_summ["median"], color = :green)
-    # band!(
-    #     ax,
-    #     prior_sims_summ["t"],
-    #     prior_sims_summ["lower"],
-    #     prior_sims_summ["upper"],
-    #     color = (:green, 0.4)
-    # )
-
-    min_t = min(-10, floor(data[id].obs_times[1] - 2))
-    max_t = max(14, ceil(data[id].obs_times[end] + 2))
-    # xlims!(ax, min_t, max_t)
-    xlims!(ax, -14, 14)
-end
-
-display(fig)
-
-save(fig_loc * "predictive_plot_multi_individuals.pdf", fig, pt_per_unit = 1.0)
-
-## --- Now do some sampling using the hierarchical part of the model ---
-
-# Now sample completely new individuals using the hyper parameters
-df_samples_joint = df_samples[
-    1:2:end, [:μ_β, :σ_β, :μ_k, :σ_k, :μ_δ, :σ_δ, :μ_πv, :σ_πv, :μ_c, :σ_c, :κ]
-]
-
-# now we need to draw new samples
-nsamples = 10_000
-new_samples = zeros(nsamples, 6)
-
-j = 1
-for (i, symbol) in enumerate(fieldnames(Params))
-    symbol ∈ [:infection_time_range, :z_β, :z_δ, :z_πv] && continue
-
-    if symbol == :infection_time
-        new_samples[:, j] .= 0.0
-    elseif symbol == :k
-        new_samples[:, j] .= μ_k
-    elseif symbol == :c
-        new_samples[:, j] .= μ_c
-    else
-        μ = df_samples_joint[1:nsamples, string_to_symbol("μ_", symbol)]
-        σ = df_samples_joint[1:nsamples, string_to_symbol("σ_", symbol)]
-        new_samples[:, j] = rand.(Truncated.(Normal.(μ, σ), 0.01, 100))
-    end
-    j += 1
-end
-
-new_samples = DataFrame(new_samples, [:β, :k, :δ, :πv, :c, :infection_time])
-
-κ_post = df_samples[:, :κ]
-
-##
-
-post_sims = ppc_simulation(new_samples, Z0_bp, nn, prob, κ_post, 5000, 100; Δt = 0.1)
-
-post_sims_summ = summarise_ppc_sims(post_sims)
-
-prior_samples = zeros(nsamples, 6)
-
-j = 1
-for (i, symbol) in enumerate(fieldnames(Params))
-    symbol ∈ [:infection_time_range, :z_β, :z_δ, :z_πv] && continue
-
-    if symbol == :infection_time
-        prior_samples[:, j] .= 0.0
-        # elseif symbol == :β
-        #     prior_samples[:, j] .= μ_β
-    elseif symbol == :k
-        prior_samples[:, j] .= μ_k
-    elseif symbol == :c
-        prior_samples[:, j] .= μ_c
-    else
-        μ = rand(hyper_priors[string_to_symbol("μ_", symbol)], nsamples)
-        if symbol == :β
-            σ = df_true_hyper_pars[1, "σ_β"]
-
-        elseif symbol == :πv
-            σ = df_true_hyper_pars[1, "σ_πv"]
-        else
-            σ = rand(hyper_priors[string_to_symbol("σ_", symbol)], nsamples)
-        end
-        prior_samples[:, j] = rand.(Truncated.(Normal.(μ, σ), 0.01, 100))
-    end
-    j += 1
-end
-
-prior_samples = DataFrame(prior_samples, [:β, :k, :δ, :πv, :c, :infection_time])
-κ_prior = rand(hyper_priors[:κ], nsamples)
-
-prior_sims = ppc_simulation(prior_samples, Z0_bp, nn, prob, κ_prior, 5000, 100; Δt = 0.1)
-prior_sims_summ = summarise_ppc_sims(prior_sims)
-
-##
-
-size_inches = (5.5, 3.5)
-size_pt = size_inches .* 72
-fig = Figure(
-    size = size_pt,
-    fontsize = 11,
-    dpi = 300,
-    sharey = true,
-    xgridvisible = false,
-    ygridvisible = false
-)
-ax = Axis(fig[1, 1], ylabel = L"\textrm{viral load } (\log_{10})", titlealign = :left)
-lines!(ax, prior_sims_summ["t"], prior_sims_summ["median"], color = :dodgerblue)
-band!(
-    ax,
-    prior_sims_summ["t"],
-    prior_sims_summ["lower"],
-    prior_sims_summ["upper"],
-    color = (:dodgerblue, 0.2)
-)
-band!(
-    ax,
-    prior_sims_summ["t"],
-    prior_sims_summ["bottom"],
-    prior_sims_summ["top"],
-    color = (:dodgerblue, 0.2)
-)
-xlims!(ax, 0, 21)
-ax.title = "(A)"
-
-ax = Axis(fig[1, 2], titlealign = :left)
-lines!(ax, post_sims_summ["t"], post_sims_summ["median"], color = :red)
-band!(
-    ax, post_sims_summ["t"], post_sims_summ["lower"], post_sims_summ["upper"], color = (:red, 0.3)
-)
-band!(ax, post_sims_summ["t"], post_sims_summ["bottom"], post_sims_summ["top"], color = (:red, 0.3))
-xlims!(ax, 0, 21)
-ax.title = "(B)"
-Label(fig[2, 1:2], "time (days) post infection")
-
-display(fig)
-
-save(fig_loc * "predictive_plot_population.pdf", fig, pt_per_unit = 1.0)
-
-##
-
-fig = Figure(resolution = size_pt, fontsize = 12, dpi = 300)
-axs = [
-    Axis(fig[1, 1], ylabel = L"\textrm{viral load } (\log_{10})", xlabel = L"\textrm{time (days)}"),
-    Axis(fig[1, 2], ylabel = L"\textrm{viral load } (\log_{10})", xlabel = L"\textrm{time (days)}")
-]
-for i in 1:10
-    lines!(
-        axs[1],
-        prior_sims[:, 1],
-        prior_sims[:, rand(2:size(prior_sims, 2))],
-        color = :green,
-        alpha = 0.4
-    )
-    lines!(
-        axs[2],
-        post_sims[:, 1],
-        post_sims[:, rand(2:size(prior_sims, 2))],
-        color = :red,
-        alpha = 0.4
-    )
-end
-xlims!(axs[1], 0, 21)
-xlims!(axs[2], 0, 21)
-# xlims!(axs[1], data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-# xlims!(axs[2], data[id].obs_times[1] - 1, data[id].obs_times[end] + 1)
-display(fig)
-
-save(fig_loc * "predictive_population_spaghetti.pdf", fig, pt_per_unit = 1.0)
-
-##

@@ -16,7 +16,7 @@ include("../plotting.jl")
 # Includes relative to this files location.
 include("../tcl/tcl_simulation.jl")
 include("../tcl/default.jl")
-include("../inference/within_host_inference.jl")
+include("../inference_log/within_host_inference.jl")
 
 ##
 

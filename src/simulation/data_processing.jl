@@ -6,7 +6,7 @@ for processes like the conversion of CT values to viral loads.
 
 using CSV, DataFrames
 
-include("data_structures.jl")
+include("../inference_log/data_structures.jl")
 include("../io.jl")
 
 function ct_to_vl(c; intercept = 40.93733, slope = -3.60971)
@@ -16,14 +16,14 @@ function ct_to_vl(c; intercept = 40.93733, slope = -3.60971)
     return (c - intercept) / slope * log10(10) + log10(250)
 end
 
-function load_sim_data()
+function load_sim_data(params_loc, data_loc)
     """
     This function loads the data for the within-host model. It returns the
     experiment data, the true infection times, the viral load data, and the
     latest observation time.
     """
-    df_params = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
-    df = CSV.read(data_dir("sims/data.csv"), DataFrame)
+    df_params = CSV.read(params_loc, DataFrame)
+    df = CSV.read(data_loc, DataFrame)
 
     # Now collect the data into a simple format
     vl = Vector{Vector{Float64}}()
@@ -33,11 +33,11 @@ function load_sim_data()
     for id in unique(df.ID)
         tmp = df[df.ID .== id, :]
         push!(obs_times, tmp.t)
-        push!(vl, tmp.log_vl)
-        push!(vl_noisy, tmp.noisy_log_vl)
+        # push!(vl, tmp.log_vl)
+        push!(vl_noisy, tmp.noisy_log_vl_no_lod)
     end
 
-    N = length(vl)
+    N = length(unique(df.ID))
     true_infection_times = df_params.infection_time
     data = Vector{IndividualData}()
 
@@ -47,7 +47,7 @@ function load_sim_data()
         push!(data, IndividualData(obs_times = obs_times[i], vl = vl_noisy[i]))
     end
 
-    return data, true_infection_times, vl, latest_obs_time
+    return data, true_infection_times, latest_obs_time
 end
 
 function load_zitzmann_data()

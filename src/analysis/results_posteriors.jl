@@ -1,4 +1,4 @@
-include("../inference/within_host_inference.jl")
+include("../inference_log/within_host_inference.jl")
 include("results.jl")
 include("../plotting.jl")
 
@@ -6,10 +6,12 @@ include("../plotting.jl")
 
 Random.seed!(2023)
 
-(data, ids) = get_cleaned_data("data/sims/sim_data_clean.csv")
+dataset_id = 1
 
-df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
-df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
+(data, ids) = get_cleaned_data("data/sims/covid_data_clean_$dataset_id.csv")
+
+df_true_pars = CSV.read(data_dir("sims/covid_parameters_$dataset_id.csv"), DataFrame)
+df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_$dataset_id.csv"), DataFrame)
 
 fig_loc = "figures/simulation/"
 if isdir(fig_loc) == false
@@ -43,8 +45,6 @@ pars0 = deepcopy(mean_pars)
 S0 = Z0[1]
 Z0_bp = Z0[2:end]
 
-integrator = f -> quadgk(f, -7, 7)[1]
-
 σ_R₀, σ_k, σ_δ, σ_πv, σ_c = df_true_hyper_pars[1, [:σ_R₀, :σ_k, :σ_δ, :σ_πv, :σ_c]]
 
 ##
@@ -64,22 +64,39 @@ end
 
 ##
 
-df_samples = [CSV.read(results_dir("samples_sim_$i.csv"), DataFrame) for i in 1:4]
+df_samples = [
+    CSV.read(results_dir("sim_samples/dataset_$dataset_id/samples_$i.csv"), DataFrame) for i in 1:3
+]
 burnin = 10000
 thin = 10
-df_samples = [df_samples[i][burnin:thin:end, :] for i in 1:4]
+# df_samples = [df_samples[i][burnin:thin:end, :] for i in 1:4]
 df_samples = vcat(df_samples...)
+df_samples.σ_R₀ = exp.(df_samples.σ_R₀)
+df_samples.σ_δ = exp.(df_samples.σ_δ)
+df_samples.σ_πv = exp.(df_samples.σ_πv)
+
+##
+
+Σ1 = cov(Matrix(df_samples[:, [:z_R₀_1, :z_δ_1, :z_πv_1, :infection_time_1]]))
+Σ1 = cov(Matrix(df_samples[:, [:z_R₀_2, :z_δ_2, :z_πv_2, :infection_time_2]]))
+
+##
+
 samples = Matrix(df_samples)
 
 df = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
 select!(df, [:ID, :R₀, :k, :δ, :πv, :c, :infection_time])
 
-param_sigmas = CSV.read(data_dir("param_sigma.csv"), DataFrame)
-σ_β, σ_δ, σ_πv = param_sigmas[1, ["β", "δ", "πv"]]
-
 σ_β = 1.0
 σ_πv = 1.0
 σ_δ = 0.5
+
+fig = Figure()
+ax = Axis(fig[1, 1])
+for i in 1:3
+    hist!(ax, exp.(df_samples[i].σ_πv[burnin:end]), bins = 40, normalization = :pdf)
+end
+display(fig)
 
 ##
 

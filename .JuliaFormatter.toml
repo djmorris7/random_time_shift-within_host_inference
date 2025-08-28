@@ -1,0 +1,8 @@
+style = "blue"
+yas_style_nesting = true
+whitespace_ops_in_indices = true
+whitespace_in_kwargs = true
+trailing_comma = false
+separate_kwargs_with_semicolon = false
+remove_extra_newlines = true
+margin = 100

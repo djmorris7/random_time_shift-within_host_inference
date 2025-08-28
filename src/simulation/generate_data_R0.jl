@@ -9,12 +9,12 @@ Outputs are saved in the data/sims directory. The following files are generated:
 """
 
 # Include these once or things break
-include("../pkgs.jl")
-include("io.jl")
+include("../../pkgs.jl")
+include("../io.jl")
 # Includes relative to this files location.
-include("tcl/tcl_simulation.jl")
-include("inference/priors.jl")
-include("inference/within_host_inference.jl")
+include("../tcl/tcl_simulation.jl")
+include("../inference_log/priors.jl")
+include("../inference_log/within_host_inference.jl")
 
 function log10p0(x)
     """
@@ -29,32 +29,6 @@ function log10p0(x)
         return 0.0
     end
 end
-
-##
-
-# Set seed for reproducibility.
-Random.seed!(2023)
-
-# Testing the gillespie simulator
-S0 = Int(8e7)
-
-K = S0
-
-# Individual parameters (means)
-μ_R₀ = 8.0
-μ_k = 4.0
-μ_δ = 1.3
-δ_range_ke = [1.2, 1.35]
-μ_πv = 3.0
-πv_range_ke = [2.76, 3.41]
-μ_c = 10.0
-
-μ = [μ_R₀, μ_k, μ_δ, μ_πv, μ_c]
-
-fixed = [false, true, true, false, false]
-σs = [0.5, 0, 0.15, 0.25, 0]
-
-##
 
 function tcl_deterministic!(dx, x, pars, t; S0 = S0)
     """
@@ -73,66 +47,6 @@ function tcl_deterministic!(dx, x, pars, t; S0 = S0)
 
     return nothing
 end
-
-# X(t) = (U, E, I, V)
-Z0 = [S0 - 1, 1, 0, 0]
-
-LOD = 2.6576090679593496
-ct_LOD = 40.0
-
-u0 = Z0
-obs_t = 50
-tspan = (0, 50)
-t_inf = 15.2
-model_pars = deepcopy(μ)
-prob = ODEProblem(tcl_deterministic!, u0, (0, 20), model_pars)
-sol = solve(prob, Tsit5(); abstol = 1e-8, reltol = 1e-8, save_idxs = 4)
-sol2 = solve(prob, Tsit5(); save_idxs = 4)
-sol3 = solve(prob, Tsit5(); save_idxs = 4, saveat = 0:1:20)
-
-t_save = 0:1:20
-V1 = log10p0.(sol.(t_save))
-V2 = log10p0.(sol2.(t_save))
-V3 = log10p0.(sol3.u)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-scatter!(ax, t_save, V1 - V2, color = :red)
-scatter!(ax, t_save, V2 - V3, color = :blue)
-# scatter!(ax, t_save, V2, color = :red)
-display(fig)
-
-V_det = log10p0.(sol.u)
-
-model_pars_stoch = deepcopy(model_pars)
-# model_pars_stoch[1] = model_pars_stoch[1] / S0
-
-V_stoch = []
-for i in 1:100
-    t, Z, _ = tcl_gillespie(model_pars_stoch, Z0)
-    V = log10p0.(stack(Z, dims = 1)[:, 4])
-    push!(V_stoch, (t, V))
-end
-
-##
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for V_i in V_stoch
-    lines!(ax, V_i[1], V_i[2], color = ("black", 0.2))
-end
-lines!(ax, sol.t, V_det, color = :red)
-display(fig)
-
-##
-
-save_at = 1.0
-t0_span = (0.0, 30.0)
-obs_t = 22.0
-
-##
-
-nn = load_nn()
 
 function get_gg_pars_nn(pars, Z0_bp, nn; S0 = S0)
     """
@@ -234,21 +148,6 @@ function solve_exact_extinction_probs(pars)
     return x_out[1]
 end
 
-pars = [8.0, μ_k, μ_δ, μ_πv, μ_c]
-
-##
-
-extincts = zeros(1000)
-
-for i in eachindex(extincts)
-    _, _, extinct = tcl_gillespie(pars, Z0)
-    extincts[i] = extinct
-end
-
-mean(extincts)
-
-##
-
 function get_μ(t, τ, sol)
     t_inf = sol.t[1]
 
@@ -310,52 +209,31 @@ end
 """
 Noisy up that data.
 """
-function add_noise_vls(vls, κ; LOD = 2.6576090679593496)
+function add_noise_vls(o, vls, κ; LOD = 2.6576090679593496, sparse_sampling = false)
+    o_noisy = deepcopy(o)
     vls_noisy = deepcopy(vls)
     vls_noisy = rand.(Normal.(vls, κ))
+    vls_noisy_no_LOD = deepcopy(vls_noisy)
     vls_noisy[vls_noisy .<= LOD] .= LOD
-    return vls_noisy
+
+    keep_mask = trues(length(vls_noisy))
+
+    if sparse_sampling
+        above_LOD_idxs = findall(vls_noisy .> LOD)
+        # Remove all above LOD values and add in later
+        keep_mask[above_LOD_idxs] .= false
+
+        n_keep = rand(3:length(above_LOD_idxs))
+        keep_idxs = sort(sample(above_LOD_idxs, n_keep, replace = false))
+        keep_mask[keep_idxs] .= true
+
+        # Keep only the relevant observations
+        o_noisy = o_noisy[keep_mask]
+        vls_noisy = vls_noisy[keep_mask]
+    end
+
+    return o_noisy, vls_noisy, vls_noisy_no_LOD
 end
-
-##
-
-T_obs = 70
-Z0_bp = Z0[2:end]
-
-o, y, τ = approx_sample_tcl([8.0, μ_k, μ_δ, μ_πv, μ_c], 0, Z0_bp, nn, prob, T_obs)
-
-κ = 0.5
-y_noisy = add_noise_vls(y, κ)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, o, y, color = :black)
-plot!(ax, o, y_noisy, color = :red)
-display(fig)
-
-##
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for V_i in V_stoch
-    lines!(ax, V_i[1], V_i[2], color = ("black", 0.2))
-end
-lines!(ax, sol.t, V_det, color = :red)
-
-##
-
-hyper_params = Dict(
-    :μ_R₀ => μ_R₀,
-    :σ_R₀ => σs[1],
-    :μ_k => μ_k,
-    :σ_k => σs[2],
-    :μ_δ => μ_δ,
-    :σ_δ => σs[3],
-    :μ_πv => μ_πv,
-    :σ_πv => σs[4],
-    :μ_c => μ_c,
-    :σ_c => σs[5]
-)
 
 function sample_prior_params(priors, hyper_params)
     feasible_pars = false
@@ -419,180 +297,3 @@ function sim_till_valid(priors, hyper_params, Z0_bp, nn, prob, T_obs)
 
     return (o, y, θ, t_inf, τ)
 end
-
-##
-
-θ, t_inf = sample_prior_params(priors, hyper_params)
-o, y = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
-# θ, t_inf = sample_prior_params(priors, hyper_params)
-o1, y1 = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
-
-println(is_sim_valid(o, y))
-println(is_sim_valid(o1, y1))
-
-θs = stack([sample_prior_params(priors, hyper_params)[1] for _ in 1:10000])
-
-hist(θs[3, :])
-
-##
-
-n_samples = 1000
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for n in 1:n_samples
-    o, y = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
-    if is_sim_valid(o, y)
-        lines!(ax, o, y, color = (:black, 0.3))
-    end
-end
-xlims!(floor(t_inf) - 2, 0)
-vlines!(ax, [t_inf], color = :red)
-display(fig)
-
-##
-
-o, y, θ, t_inf, τ = sim_till_valid(priors, hyper_params, Z0_bp, nn, prob, T_obs)
-o2, y2, θ2, t_inf, τ = sim_till_valid(priors, hyper_params, Z0_bp, nn, prob, T_obs)
-
-o_noisy = deepcopy(o)
-y_noisy = add_noise_vls(y, κ)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, o, y, color = :black)
-plot!(ax, o2, y2, color = :black)
-# plot!(ax, o_noisy, y_noisy, color = :red)
-display(fig)
-
-##
-
-Random.seed!(2028)
-
-N = 100
-# N = 100
-
-θ = deepcopy(μ)
-
-const VVF = Vector{Vector{Float64}}
-const VVI = Vector{Vector{Int}}
-
-IDs = Vector{Int}()
-ind_pars = Vector{Vector{Float64}}()
-obs_times = Vector{Float64}()
-vls = Vector{Float64}()
-obs_vls = Vector{Float64}()
-
-# Now generate the data for the N individuals
-for i in 1:N
-    # Draw parameters
-    # θ = rand.(Truncated.(Normal.(μ, σs), 0.1, 100))
-    # Fix latent period and infectious period of infected cells
-    # θ[[2, 5]] .= μ[[2, 5]]
-    (o, y, θ, t_inf, τ) = sim_till_valid(priors, hyper_params, Z0_bp, nn, prob, T_obs)
-
-    # y_noisy = y
-    y_noisy = add_noise_vls(y, κ)
-    t_till_peak = argmax(y_noisy)
-    # Shift the observation times back by the time taken to peak. This forces
-    # the peak time to be 0 for all individuals.
-    peak_time = o[t_till_peak]
-    o = o .- peak_time
-    # Then need to shift the infection time relative to the peak time
-    t_inf = t_inf - peak_time
-
-    id = fill(i, length(o))
-    append!(IDs, id)
-    push!(ind_pars, [i; t_inf; deepcopy(θ); τ])
-    append!(obs_times, o)
-    append!(vls, y)
-    append!(obs_vls, y_noisy)
-end
-
-ind_pars = stack(ind_pars, dims = 1)
-
-df_data = DataFrame(ID = IDs, t = obs_times, log_vl = vls, noisy_log_vl = obs_vls)
-
-df_params = DataFrame(ind_pars, ["ID", "infection_time", "R₀", "k", "δ", "πv", "c", "τ"])
-
-##
-
-λs = zeros(N)
-
-for i in 1:N
-    (R₀, k, δ, πv, c) = ind_pars[i, 3:7]
-    β = R₀ * δ * c / πv
-    # Calculate omega matrix and artefacts from that.
-    Ω = [
-        -k k 0
-        0 -δ πv
-        β 0 -c
-    ]
-
-    λ, u_norm, _ = calculate_BP_contributions(Ω)
-    λs[i] = λ * u_norm[3]
-end
-
-hist(λs)
-
-x = 0:6
-y = [λ * x for λ in λs]
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for y_i in y
-    lines!(ax, x, y_i, color = :black, alpha = 0.1)
-end
-display(fig)
-
-##
-
-check_exist_mkdir(data_dir("sims"))
-CSV.write(data_dir("sims/data.csv"), df_data)
-CSV.write(data_dir("sims/parameters.csv"), df_params)
-
-all_hyper_params = [μ[1], σs[1], μ[2], 0, μ[3], σs[3], μ[4], σs[4], μ[5], 0, κ]'
-
-param_labels = ["μ_R₀", "σ_R₀", "μ_k", "σ_k", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "μ_c", "σ_c", "κ"]
-
-df_hyper_params = DataFrame(all_hyper_params, param_labels)
-
-CSV.write(data_dir("sims/hyper_parameters.csv"), df_hyper_params)
-
-##
-
-fig = Figure()
-axs = [Axis(fig[i, 1]) for i in 1:3]
-hist!(axs[1], df_params.R₀)
-hist!(axs[2], df_params.δ)
-hist!(axs[3], df_params.πv)
-
-display(fig)
-
-##
-
-# Overlay the trajectories to see differeences
-fig = Figure()
-ax = Axis(fig[1, 1])
-for i in 1:100
-    df_view = df_data[df_data.ID .== i, :]
-    # scatter!(ax, df_view.t, df_view.noisy_log_vl, color = "black", alpha = 0.5)
-    lines!(ax, df_view.t, df_view.log_vl, color = "red")
-end
-display(fig)
-
-##
-
-# Plot some of the trajectories
-fig = Figure(size = (1000, 1000))
-axs = [Axis(fig[i, j]) for i in 1:7, j in 1:8]
-for (i, ax) in enumerate(axs)
-    if i > 50
-        break
-    end
-    df_view = df_data[df_data.ID .== i, :]
-    scatter!(ax, df_view.t, df_view.noisy_log_vl, color = "black", alpha = 0.5)
-    scatter!(ax, df_view.t, df_view.log_vl, color = "red", alpha = 0.5)
-    xlims!(ax, -10, 10)
-end
-display(fig)

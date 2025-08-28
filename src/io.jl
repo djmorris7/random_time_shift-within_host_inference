@@ -29,11 +29,3 @@ function figs_dir(args...)
 
     return final_dir
 end
-
-function make_all_dirs()
-    check_exist_mkdir("data")
-    check_exist_mkdir("results")
-    check_exist_mkdir("figures")
-
-    return nothing
-end

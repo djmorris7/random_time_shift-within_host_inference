@@ -121,7 +121,7 @@ max_error, max_error_ind = findmax(errors)
 train_Y[:, max_error_ind]
 model(train_X[:, max_error_ind])
 
-## Check the model for the maximal error parameters
+##
 
 test_pars = deepcopy(train_X[:, max_error_ind])
 test_pars = [8.64475, 1.266, 3.020]

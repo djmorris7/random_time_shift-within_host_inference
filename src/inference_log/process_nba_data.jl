@@ -11,28 +11,28 @@ include("../../pkgs.jl")
 
 ##
 
-df = CSV.read("data/zitzmann/ct_dat_refined.csv", DataFrame)
-df[!, :log_vl] .= ct_to_vl.(df.CtT1)
+# df = CSV.read("data/zitzmann/ct_dat_refined.csv", DataFrame)
+# df[!, :log_vl] .= ct_to_vl.(df.CtT1)
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-for id in unique(df.PersonID)
-    tmp = df[df.PersonID .== id, :]
-    scatter!(ax, tmp.TestDateIndex, tmp.log_vl)
-end
-xlims!(ax, (-20, 40))
-display(fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# for id in unique(df.PersonID)
+#     tmp = df[df.PersonID .== id, :]
+#     scatter!(ax, tmp.TestDateIndex, tmp.log_vl)
+# end
+# xlims!(ax, (-20, 40))
+# display(fig)
 
-is_vaccinated = .!ismissing.(df.VaccineManufacturer)
+# is_vaccinated = .!ismissing.(df.VaccineManufacturer)
 
-df_data = DataFrame(
-    "id" => df.PersonID,
-    "obs_times" => df.TestDateIndex,
-    "vl_noisy" => df.log_vl,
-    "vax_status" => is_vaccinated
-)
+# df_data = DataFrame(
+#     "id" => df.PersonID,
+#     "obs_times" => df.TestDateIndex,
+#     "vl_noisy" => df.log_vl,
+#     "vax_status" => is_vaccinated
+# )
 
-CSV.write("data/zitzmann/full_processed_data.csv", df_data)
+# CSV.write("data/zitzmann/full_processed_data.csv", df_data)
 
 ##
 
@@ -69,6 +69,17 @@ CSV.write("data/nba/nba_data.csv", df_new)
 ##
 
 (data, id_mapping) = load_all_nba_data(keep_vaccinated = true, keep_lod = true)
+
+fig = Figure(size = (1000, 1000))
+axs = [Axis(fig[i, j]) for i in 1:10, j in 1:10]
+
+for (i, ax) in enumerate(axs)
+    dat = data[i]
+    plot!(ax, dat.obs_times, dat.vl)
+end
+display(fig)
+
+##
 
 function remove_lod(dat::IndividualData, lod = 2.6576090679593496)
     times = dat.obs_times
@@ -121,8 +132,7 @@ data = [cutoff_pre_and_post_data(dat) for dat in data]
 
 ##
 
-plot(data[7].obs_times, data[7].vl)
-plot(data[7].obs_times, data[7].vl)
+plot(data[2].obs_times, data[2].vl)
 
 fig = Figure(size = (1000, 1000))
 axs = [Axis(fig[i, j]) for i in 1:10, j in 1:10]

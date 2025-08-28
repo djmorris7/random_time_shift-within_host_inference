@@ -7,6 +7,7 @@ from `within_host_inference.jl`.
 include("../../pkgs.jl")
 include("data_structures.jl")
 include("within_host_inference.jl")
+# include("within_host_inference_deterministic.jl")
 
 """
 Transform the lower-bounded parameters to the log-space.
@@ -84,19 +85,21 @@ function is_in_ϕ_support(ϕ; fixed_params = fixed_params)
     """
     Check that the shared parameters are in the support of the model.
     """
-    for x in fieldnames(SharedParams)
-        fixed_params[x] && continue
-        if getfield(ϕ, x) <= 0
-            return false
-        end
+    if (ϕ.μ_R₀ <= 0) || (ϕ.μ_δ <= 0) || (ϕ.μ_πv <= 0)
+        return false
     end
     return true
 end
 
 function update_ncps!(θ, ϕ)
-    θ.R₀ = θ.z_R₀ * ϕ.σ_R₀ + ϕ.μ_R₀
-    θ.δ = θ.z_δ * ϕ.σ_δ + ϕ.μ_δ
-    θ.πv = θ.z_πv * ϕ.σ_πv + ϕ.μ_πv
+    # Map back to non-log space
+    σ_R₀ = exp(ϕ.log_σ_R₀)
+    σ_δ = exp(ϕ.log_σ_δ)
+    σ_πv = exp(ϕ.log_σ_πv)
+
+    θ.R₀ = θ.z_R₀ * σ_R₀ + ϕ.μ_R₀
+    θ.δ = θ.z_δ * σ_δ + ϕ.μ_δ
+    θ.πv = θ.z_πv * σ_πv + ϕ.μ_πv
 
     return nothing
 end
@@ -130,8 +133,6 @@ function ϕ_proposal!(ϕ_new, ϕ_old, θ_old, Σ; fixed_params = fixed_params)
     ϕ_new_v, ϕ_symbols = extract_sampled_shared_params(ϕ_old; fixed_params = fixed_params)
     ϕ_new_v .+= rand(MvNormal(Σ))
 
-    adj_dens = 0.0
-
     # Update the SharedParams struct
     for (ϕ_i, s) in zip(ϕ_new_v, ϕ_symbols)
         setfield!(ϕ_new, s, ϕ_i)
@@ -146,7 +147,16 @@ function ϕ_proposal!(ϕ_new, ϕ_old, θ_old, Σ; fixed_params = fixed_params)
     is_in_support_θ = all(is_in_θ_support!(θ_i) for θ_i in θ_old)
     is_in_support = is_in_support_ϕ && is_in_support_θ
 
-    return is_in_support, adj_dens
+    return is_in_support
+end
+
+function get_det_jacobian(ϕ_new, ϕ_old)
+    # Jacobian of the transformation
+    adj_dens =
+        (ϕ_new.log_σ_R₀ + ϕ_new.log_σ_δ + ϕ_new.log_σ_πv) -
+        (ϕ_old.log_σ_R₀ + ϕ_old.log_σ_δ + ϕ_old.log_σ_πv)
+
+    return adj_dens
 end
 
 function accept_reject(π_new, π_old; adj_dens = 0.0)
@@ -247,7 +257,7 @@ function convert_samples_to_row(θ_curr, ϕ_curr)
             push!(row, getfield(θ_curr[i], Symbol(s)))
         end
     end
-    for s in ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]
+    for s in ["μ_R₀", "log_σ_R₀", "μ_δ", "log_σ_δ", "μ_πv", "log_σ_πv", "κ"]
         push!(row, getfield(ϕ_curr, Symbol(s)))
     end
 
@@ -283,7 +293,9 @@ function compute_acceptance_rates(mcmc_stats, n_current, n_total)
     return (accepted_percent_individual, accepted_percent_shared)
 end
 
-function step_one!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_threads, mcmc_stats)
+function step_one!(
+    mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_threads, mcmc_stats, fixed_params, Σs
+)
     """
     The first step of the Metropolis-Hastings within Gibbs sampler. This step loops over the
     individuals and samples parameters per person given the shared parameters.
@@ -329,7 +341,9 @@ function step_one!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_thr
     return nothing
 end
 
-function step_two!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_threads, mcmc_stats)
+function step_two!(
+    mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_threads, mcmc_stats, fixed_params, Σs
+)
     """
     The second step of the Metropolis-Hastings within Gibbs sampler. This step samples the shared
     parameters given the current individual parameters.
@@ -343,10 +357,6 @@ function step_two!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_thr
         sum(individual_prior(θ_curr[i], ϕ_curr) for i in eachindex(θ_curr)) +
         sum(current_individual_likelihoods)
 
-    # println(shared_prior(ϕ_curr))
-    # println(sum(individual_prior(θ_curr[i], ϕ_curr) for i in eachindex(θ_curr)))
-    # println("Sum of likelihoods: ", sum(current_individual_likelihoods))
-
     N = length(data)
 
     # Make sure we have the correct parameters at the time of sampling
@@ -355,9 +365,7 @@ function step_two!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_thr
     end
 
     # 2. Sample shared parameters given current individual parameters
-    is_in_support, adj_dens = ϕ_proposal!(
-        ϕ_prop, ϕ_curr, θ_prop, Σs[end]; fixed_params = fixed_params
-    )
+    is_in_support = ϕ_proposal!(ϕ_prop, ϕ_curr, θ_prop, Σs[end]; fixed_params = fixed_params)
 
     mcmc_stats[:n_total_proposals_shared] += 1
 
@@ -377,6 +385,9 @@ function step_two!(mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_thr
         proposed_shared_posterior += sum(
             individual_prior(θ_prop[i], ϕ_prop) for i in eachindex(θ_prop)
         )
+
+        # Get jacobian of the log-transformation to handle that we're sampling in the log-variance space
+        adj_dens = get_det_jacobian(ϕ_prop, ϕ_curr)
 
         if accept_reject(proposed_shared_posterior, current_shared_posterior; adj_dens = adj_dens)
             # Store the updated parameters
@@ -408,7 +419,8 @@ function metropolis_within_gibbs(
     ϕ,
     data,
     Σs,
-    n_samples;
+    n_samples,
+    M_threads;
     fixed_params = fixed_params,
     sample_hierarchical = true,
     update_interval = 10_000,
@@ -457,9 +469,6 @@ function metropolis_within_gibbs(
     )
     mcmc_params = MCMC_Params(θ_curr, θ_prop, ϕ_curr, ϕ_prop)
 
-    scaling_factors = ones(N + 1)
-    Σs_unscaled = deepcopy(Σs)
-
     # The samples
     n_samples_save = n_samples ÷ save_every
 
@@ -478,13 +487,13 @@ function metropolis_within_gibbs(
     n_curr = 1
 
     # Instantiate a progress bar that updates every 10 seconds
-    p = Progress(n_samples; showspeed = true, dt = 10.0)
+    p = Progress(n_samples; showspeed = true, dt = 30.0)
 
     for n in 1:n_samples
         # Sample the individual parameters
-        step_one!(mcmc_params, mcmc_probs, data, M_threads, mcmc_stats)
+        step_one!(mcmc_params, mcmc_probs, data, M_threads, mcmc_stats, fixed_params, Σs)
         # Sample the shared parameters
-        step_two!(mcmc_params, mcmc_probs, data, M_threads, mcmc_stats)
+        step_two!(mcmc_params, mcmc_probs, data, M_threads, mcmc_stats, fixed_params, Σs)
 
         if save_every == 1
             samples[n, :] = convert_samples_to_row(θ_curr, ϕ_curr)
@@ -508,6 +517,7 @@ function metropolis_within_gibbs(
         )
     end
 
+    # TODO: improve to utilise burnin discard
     return samples
 end
 

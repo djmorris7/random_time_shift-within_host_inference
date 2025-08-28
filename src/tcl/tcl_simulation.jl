@@ -132,6 +132,8 @@ function tcl_gillespie(pars, Z0; tf = 100.0, Δt = 0.01, t0 = 0.0, V_min = 1e5, 
     Z = deepcopy(Z0)
     tf_adj = t0 + tf
 
+    S0 = Z0[1]
+
     # Calculate the actual number of steps
     n = ceil(Int, (t0 + tf) / save_at)
     Z_mat = Vector{Vector{Float64}}()
@@ -160,7 +162,7 @@ function tcl_gillespie(pars, Z0; tf = 100.0, Δt = 0.01, t0 = 0.0, V_min = 1e5, 
     a0 = 0.0
 
     while (t < tf_adj) && !iszero(sum(Z[2:end]))
-        get_rates!(a, pars, Z)
+        get_rates!(a, pars, Z; S0 = S0)
         tau_leap = check_if_tau_leap(Z)
 
         # If we're using the tau leap method, we know the time-step otherwise we need to calculate it

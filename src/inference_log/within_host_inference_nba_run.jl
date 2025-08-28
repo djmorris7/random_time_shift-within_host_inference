@@ -115,7 +115,9 @@ all_params = [
 
 σ_R₀, σ_k, σ_δ, σ_πv, σ_c = df_true_hyper_pars[1, ["σ_R₀", "σ_k", "σ_δ", "σ_πv", "σ_c"]]
 
-shared_params = SharedParams(8, σ_R₀, μ_k, σ_k, μ_δ, σ_δ, μ_πv, σ_πv, μ_c, σ_c, κ)
+shared_params = SharedParams(
+    8, log(σ_R₀), μ_k, log(σ_k), μ_δ, log(σ_δ), μ_πv, log(σ_πv), μ_c, log(σ_c), κ
+)
 # shared_params = SharedParams(μ_β, 1.0, μ_k, σ_k, μ_δ, 0.1, μ_πv, 1.0, μ_c, σ_c, κ)
 
 ##
@@ -134,153 +136,48 @@ N_shared_pars = sum(1 - v for (k, v) in fixed_shared_params)
 # Σs = intialise_Σs(N, Σ_individuals_diag, Σ_shared_diag)
 Σs = intialise_Σs(N, Σ_individuals_diag, Σ_shared_diag)
 
-# Σs[end][1, 1] = 1.0
-
-df_samples = CSV.read(results_dir("samples_nba.csv"), DataFrame)
-
 ##
 
+# NOTE: You may need to run this a couple times to get a good proposal covariances.
 Random.seed!(100)
 
-# data = data[1:50]
-# θ₀ = θ₀[1:50]
-# Σs = Σs[[1:50; N + 1]]
-
 samples = metropolis_within_gibbs(
-    θ₀, ϕ₀, data, Σs, 100_000, fixed_params = fixed_params, save_every = 1
+    θ₀, ϕ₀, data, Σs, 100_000, M_threads; fixed_params = fixed_params, save_every = 1
 )
 
 df = create_sampling_df(N, samples)
 
 ##
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-hist!(ax, df.μ_πv, bins = 100, normalization = :pdf)
-plot!(ax, hyper_priors[:μ_πv], color = :red)
-# plot!(ax, Truncated(Normal(0, 1), 0, Inf), color = :red)
-display(fig)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-hist!(ax, df.σ_πv, bins = 100, normalization = :pdf)
-plot!(ax, hyper_priors[:σ_πv], color = :red)
-# plot!(ax, Truncated(Normal(0, 1), 0, Inf), color = :red)
-display(fig)
-
-##
-
-# Look at a single individuals traceplots to make sure things are happening
-fig = Figure()
-axs = [Axis(fig[i, j]) for i in 1:2, j in 1:2]
-plot_inds = [1, 3, 4, 6] .+ (31 * 6)
-for (i, ind) in enumerate(plot_inds)
-    lines!(axs[i], samples[:, ind], color = :black, alpha = 0.5)
-    # hist!(axs[i], samples[:, ind])
-end
-display(fig)
-
-##
-
-fig = Figure(size = (600, 600))
-axs = [Axis(fig[i, 1]) for i in 1:8]
-for (i, j) in enumerate([1, 2, 5, 6, 7, 8, 11])
-    # lines!(axs[i], samples[50000:end, end - 11 + j], color = :black, alpha = 0.5)
-    lines!(axs[i], samples[:, end - 11 + j], color = :black, alpha = 0.5)
-end
-display(fig)
-
-##
-
-df = create_sampling_df(N, samples)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, hyper_priors[:σ_πv], color = :red)
-hist!(ax, df.σ_πv, bins = 100, normalization = :pdf)
-display(fig)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, hyper_priors[:σ_R₀], color = :red)
-hist!(ax, df.σ_R₀, bins = 100, normalization = :pdf)
-display(fig)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-plot!(ax, hyper_priors[:μ_R₀], color = :red)x
-hist!(ax, df.μ_R₀, bins = 100, normalization = :pdf)
-display(fig)
-
-##
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-lines!(ax, df.R₀_1, color = (:black, 0.2))
-lines!(ax, df.R₀_2, color = (:black, 0.2))
-lines!(ax, df.μ_R₀, color = :red)
-display(fig)
-
-##
-
-R0_means = [mean(samples[:, 1 + 9 * (i - 1)]) for i in 1:N]
-
-plot(R0_means)
-
-##
-
-labels = ["μ_β", "σ_β", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]
-
-fig = Figure(size = (700, 450))
-axs = [Axis(fig[i, j]) for i in 1:3, j in 1:3]
-for (i, j) in enumerate([1, 2, 5, 6, 7, 8, 11])
-    hist!(axs[i], samples[:, end - 11 + j])
-    axs[i].xlabel = labels[i]
-end
-display(fig)
-
-##
-
-# c = 2.4 / sqrt(d)
-
-df = create_sampling_df(N, samples)
-# scalings = 2.0 * ones(N + 1)
-# scalings[end] = 2.0
 scalings = [2.38^2 / size(Σs[i], 1) for i in 1:(N + 1)]
-# scalings = [1.1 for i in 1:(N + 1)]
 scalings[end] = 0.1
-# scalings[1:N] .= 1.0
-# scalings[N + 1] = 0.0001
-burnin = 10000
 for i in 1:N
     df_tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
     tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
-    Σs[i] = 1.0 * cov(tmp)
+    Σs[i] = 1.2 * cov(tmp)
     θ₀[i].z_R₀ = mean(df_tmp[:, 1])
     θ₀[i].z_δ = mean(df_tmp[:, 2])
     θ₀[i].z_πv = mean(df_tmp[:, 3])
     θ₀[i].infection_time = mean(df_tmp[:, 4])
-    θ₀[i].R₀ = θ₀[i].z_R₀ * mean(df.σ_R₀) + mean(df.μ_R₀)
-    θ₀[i].δ = θ₀[i].z_δ * mean(df.σ_δ) + mean(df.μ_δ)
-    θ₀[i].πv = θ₀[i].z_πv * mean(df.σ_πv) + mean(df.μ_πv)
+    θ₀[i].R₀ = θ₀[i].z_R₀ * mean(exp.(df.σ_R₀)) + mean(df.μ_R₀)
+    θ₀[i].δ = θ₀[i].z_δ * mean(exp.(df.σ_δ)) + mean(df.μ_δ)
+    θ₀[i].πv = θ₀[i].z_πv * mean(exp.(df.σ_πv)) + mean(df.μ_πv)
 end
 
 scale = (2.38 / sqrt(N_shared_pars))^2
 
-Σs[end] = 0.15 * cov(Matrix(df[:, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
+Σs[end] = 0.05 * cov(Matrix(df[:, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
 ϕ₀.μ_R₀ = mean(df[:, "μ_R₀"])
-ϕ₀.σ_R₀ = mean(df[:, "σ_R₀"])
+ϕ₀.log_σ_R₀ = mean(df[:, "σ_R₀"])
 ϕ₀.μ_δ = mean(df[:, "μ_δ"])
-ϕ₀.σ_δ = mean(df[:, "σ_δ"])
+ϕ₀.log_σ_δ = mean(df[:, "σ_δ"])
 ϕ₀.μ_πv = mean(df[:, "μ_πv"])
-ϕ₀.σ_πv = mean(df[:, "σ_πv"])
+ϕ₀.log_σ_πv = mean(df[:, "σ_πv"])
 ϕ₀.κ = mean(df[:, "κ"])
 
 if !isdir(results_dir("nba_tuned_covariances"))
     mkdir(results_dir("nba_tuned_covariances"))
 end
-# mkdir(results_dir("nba_tuned_covariances"))
-# save_Σs(Σs; path = "nba_tuned_covariances/")
 
 ##
 
@@ -289,11 +186,11 @@ function sample_starting_points(all_params, shared_params)
     ϕ₀ = deepcopy(shared_params)
 
     ϕ₀.μ_R₀ = ϕ₀.μ_R₀ + randn() * 1.5
-    ϕ₀.σ_R₀ = ϕ₀.σ_R₀ + randn()
+    ϕ₀.log_σ_R₀ = ϕ₀.log_σ_R₀ + randn()
     ϕ₀.μ_δ = ϕ₀.μ_δ + randn()
-    ϕ₀.σ_δ = ϕ₀.σ_δ + randn()
+    ϕ₀.log_σ_δ = ϕ₀.log_σ_δ + randn()
     ϕ₀.μ_πv = ϕ₀.μ_πv + randn()
-    ϕ₀.σ_πv = ϕ₀.σ_πv + randn()
+    ϕ₀.log_σ_πv = ϕ₀.log_σ_πv + randn()
     ϕ₀.κ = ϕ₀.κ + randn()
 
     if isinf(shared_prior(ϕ₀))
@@ -304,9 +201,9 @@ function sample_starting_points(all_params, shared_params)
         θ₀[i].z_R₀ = θ₀[i].z_R₀ + randn() * 0.1
         θ₀[i].z_δ = θ₀[i].z_δ + randn() * 0.1
         θ₀[i].z_πv = θ₀[i].z_πv + randn() * 0.1
-        θ₀[i].R₀ = θ₀[i].z_R₀ * ϕ₀.σ_R₀ + ϕ₀.μ_R₀
-        θ₀[i].δ = θ₀[i].z_δ * ϕ₀.σ_δ + ϕ₀.μ_δ
-        θ₀[i].πv = θ₀[i].z_πv * ϕ₀.σ_πv + ϕ₀.μ_πv
+        θ₀[i].R₀ = θ₀[i].z_R₀ * exp(ϕ₀.log_σ_R₀) + ϕ₀.μ_R₀
+        θ₀[i].δ = θ₀[i].z_δ * exp(ϕ₀.log_σ_δ) + ϕ₀.μ_δ
+        θ₀[i].πv = θ₀[i].z_πv * exp(ϕ₀.log_σ_πv) + ϕ₀.μ_πv
 
         if isinf(individual_prior(θ₀[i], ϕ₀)) || !is_in_θ_support!(θ₀[i])
             return false
@@ -322,11 +219,11 @@ end
 
 ##
 
-Random.seed!(2024)
+Random.seed!(2025)
 
 initial_parameter_sets = []
 
-for i in 1:4
+for i in 1:3
     while true
         tmp = sample_starting_points(all_params, shared_params)
         if tmp == false
@@ -340,12 +237,23 @@ end
 
 ##
 
+burnin = 20000
+thin = 5
+
 for (i, (θ₀, ϕ₀)) in enumerate(initial_parameter_sets)
     println("Starting chain $i...")
     samples = metropolis_within_gibbs(
-        θ₀, ϕ₀, data, Σs, 100_000; fixed_params = fixed_params, save_every = 1
+        θ₀, ϕ₀, data, Σs, 100_000, M_threads; fixed_params = fixed_params, save_every = 1
     )
     df = create_sampling_df(N, samples)
+    df.σ_R₀ = exp.(df.σ_R₀)
+    df.σ_δ = exp.(df.σ_δ)
+    df.σ_πv = exp.(df.σ_πv)
+
+    df = df[burnin:thin:end, :]
+
     CSV.write(results_dir("samples_nba_$i.csv"), df)
     println("Finished chain $i.")
 end
+
+#
