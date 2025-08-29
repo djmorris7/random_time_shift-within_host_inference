@@ -321,9 +321,11 @@ function step_one!(
         current_individual_posteriors[i] =
             current_individual_likelihoods[i] + individual_prior(θ_curr[i], ϕ_curr)
 
-        if is_in_support
-            # Compute density of proposed point
-            proposed_individual_posteriors[i] = individual_prior(θ_prop[i], ϕ_curr)
+        # Compute density of proposed point
+        proposed_individual_posteriors[i] = individual_prior(θ_prop[i], ϕ_curr)
+
+        # Only compute the liklelihood if the point has prior density
+        if is_in_support && !isinf(proposed_individual_posteriors[i])
             proposed_individual_likelihoods[i] = likelihood(
                 θ_prop[i], data[i], ϕ_curr, M_threads[Threads.threadid()]
             )
@@ -369,9 +371,10 @@ function step_two!(
 
     mcmc_stats[:n_total_proposals_shared] += 1
 
-    if is_in_support
-        # Initialise the proposed target density to the prior of the shared parameters
-        proposed_shared_posterior = shared_prior(ϕ_prop)
+    # Initialise the proposed target density to the prior of the shared parameters
+    proposed_shared_posterior = shared_prior(ϕ_prop)
+    # Only compute the liklelihood if the point has prior density
+    if is_in_support && !isinf(proposed_shared_posterior)
         # Compute the conditional posterior given current individual parameters and
         # proposed shared parameters. Don't add individual prior contributions here.
         Threads.@threads for i in 1:N
