@@ -134,15 +134,18 @@ coverage = Dict(s => 0.0 for s in hyper_param_symbols)
 interval_widths_avg = Dict(s => 0.0 for s in hyper_param_symbols)
 interval_widths_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
 biases = Dict(s => 0.0 for s in hyper_param_symbols)
+biases_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
 
 for (k, v) in coverage
     df_tmp = filter(r -> r.parameter == string(k), posterior_summaries)
     coverage[k] = sum(df_tmp.covers) / nrow(df_tmp)
     widths = df_tmp[:, "0.975"] .- df_tmp[:, "0.025"]
     interval_widths_avg[k] = mean(widths)
-    interval_widths_ci[k] .= round.(quantile(widths, (0.025, 0.975)), digits = 3)
+    interval_widths_ci[k] .= round.(quantile(widths, (0.1, 0.9)), digits = 3)
 
-    biases[k] = (mean(df_tmp.mean) - df_tmp.true_value[1]) / df_tmp.true_value[1]
+    biases_tmp = (df_tmp.mean - df_tmp.true_value[1]) / df_tmp.true_value[1]
+    biases[k] = mean(biases_tmp)
+    biases_ci[k] .= round.(quantile(biases_tmp, (0.1, 0.9)), digits = 3)
 end
 
 ##
@@ -151,3 +154,4 @@ coverage
 interval_widths_avg
 interval_widths_ci
 biases
+biases_ci

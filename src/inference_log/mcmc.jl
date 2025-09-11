@@ -76,7 +76,8 @@ function is_in_θ_support!(θ; fixed_params = fixed_params)
     Check that the parameters are in the support of the model. Also updates the
     non-centered parameters.
     """
-    # Do a simple check to ensure the parameters are positive
+    # Do a simple check to ensure the parameters are positive 1/0.25 = 4 days as the time for a cell to recover.
+    # Most studies have this δ = 1-3 so this should be fine.
     check = (θ.R₀ > 0.0) && (θ.δ > 0.25) && (θ.πv > 0.1)
     return check
 end
