@@ -1,4 +1,4 @@
-include("../inference_log/within_host_inference.jl")
+include("../inference/within_host_inference.jl")
 include("results.jl")
 include("../plotting.jl")
 
@@ -91,9 +91,9 @@ display(fig)
 
 Random.seed!(2024)
 
-size_inches = (7.5, 4.0)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300, linewidth = 1)
+size_inches = (7.25, 4.0)
+size_pt = size_inches .* inch
+fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi, linewidth = 1)
 
 row = 1
 col = 1
@@ -162,6 +162,10 @@ Label(fig[3, 1:4], L"\textrm{time (days) since peak VL}")
 
 rowgap!(fig.layout, 8)
 colgap!(fig.layout, 8)
+
+resize_to_layout!(fig)
+
 display(fig)
 
+save(fig_loc * "predictive_plot_multi_individuals.png", fig, px_per_unit = dpi / inch)
 save(fig_loc * "predictive_plot_multi_individuals.pdf", fig, pt_per_unit = 1.0)

@@ -1,5 +1,5 @@
-# include("../inference/within_host_inference.jl")
-include("../inference_log/within_host_inference.jl")
+include("../inference/within_host_inference.jl")
+# include("../inference_log/within_host_inference.jl")
 
 function get_df_samples_ind(df_samples, id)
     df_samples_ind = DataFrame()

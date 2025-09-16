@@ -66,18 +66,16 @@ posterior_summaries[:, :true_value] = [
 
 using CairoMakie, DataFrames
 
-# Example: posterior_summaries :: DataFrame
-# columns: :parameter, :simulation_no, :0.025, :0.975
-# truths :: 1-row DataFrame with true values per parameter
-
 n_params = 7
 n_rows = 3
 n_cols = 3
 
 # Create the figure with enough panels (will leave some empty if needed)
-size_inches = (7.5, 5.5)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300, sharex = true, sharey = true, linewidth = 1)
+size_inches = (7.25, 5.5)
+size_pt = size_inches .* inch
+fig = Figure(
+    size = size_pt, fontsize = fontsize, dpi = dpi, sharex = true, sharey = true, linewidth = 1
+)
 # Map true values
 truth_map = Dict(string(n) => true_param_values[1, n] for n in names(true_param_values))
 
@@ -122,7 +120,8 @@ Label(fig[4, 1:3], "Simulation number")
 
 fig
 
-save(fig_loc * "sim_posteriors_coverage.pdf", fig, pt_per_unit = 1.0)
+save(fig_loc * "sim_posteriors_coverage.png", fig, px_per_unit = dpi / inch)
+save(fig_loc * "sim_posteriors_coverage.pdf", fig, px_per_unit = dpi / inch)
 
 ##
 
@@ -143,7 +142,7 @@ for (k, v) in coverage
     interval_widths_avg[k] = mean(widths)
     interval_widths_ci[k] .= round.(quantile(widths, (0.1, 0.9)), digits = 3)
 
-    biases_tmp = (df_tmp.mean - df_tmp.true_value[1]) / df_tmp.true_value[1]
+    biases_tmp = (df_tmp.mean .- df_tmp.true_value[1]) ./ df_tmp.true_value[1]
     biases[k] = mean(biases_tmp)
     biases_ci[k] .= round.(quantile(biases_tmp, (0.1, 0.9)), digits = 3)
 end

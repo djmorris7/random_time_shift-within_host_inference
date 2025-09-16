@@ -1,4 +1,4 @@
-include("../inference_log/within_host_inference.jl")
+include("../inference/within_host_inference.jl")
 include("results.jl")
 include("../plotting.jl")
 
@@ -12,7 +12,7 @@ N = length(data)
 df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
 df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
 
-fig_loc = "figures/nba/"
+fig_loc = "figures/"
 if isdir(fig_loc) == false
     mkdir(fig_loc)
 end
@@ -89,7 +89,7 @@ n_sims = 3000
 post_sims = ppc_simulation(df_samples_ind, Z0_bp, nn, prob, κ_post, n_sims, T; t0 = -20, Δt = 0.1)
 post_sims_summ = summarise_ppc_sims(post_sims)
 
-## --- Sample multiple people at onece ---
+## --- Sample multiple people at once ---
 
 # Transcribed parameters from Zitzmann et al 2024 Supporting Information
 δs_zitz = [
@@ -264,9 +264,9 @@ push!(ids, 125)
 
 ##
 
-size_inches = (7.5, 4)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300, linewidth = 1)
+size_inches = (7.25, 4)
+size_pt = size_inches .* inch
+fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi, linewidth = 1)
 
 (row, col) = (1, 1)
 
@@ -306,7 +306,7 @@ j = 1
             ax,
             sols[id_mapping[id]].t,
             log10p0.(sols[id_mapping[id]].u),
-            color = colors[2],
+            color = :red,
             linestyle = :dash
         )
     end
@@ -345,4 +345,5 @@ colgap!(fig.layout, 8)
 
 display(fig)
 
+save(fig_loc * "predictive_plot_multi_individuals_nba.png", fig, px_per_unit = dpi / inch)
 save(fig_loc * "predictive_plot_multi_individuals_nba.pdf", fig, pt_per_unit = 1.0)

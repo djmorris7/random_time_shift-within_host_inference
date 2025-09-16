@@ -1,4 +1,4 @@
-include("../inference_log/within_host_inference.jl")
+include("../inference/within_host_inference.jl")
 include("results.jl")
 include("../plotting.jl")
 
@@ -13,7 +13,7 @@ dataset_id = 1
 df_true_pars = CSV.read(data_dir("sims/covid_parameters_$dataset_id.csv"), DataFrame)
 df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_$dataset_id.csv"), DataFrame)
 
-fig_loc = "figures/simulation/"
+fig_loc = "figures/"
 if isdir(fig_loc) == false
     mkdir(fig_loc)
 end
@@ -77,29 +77,6 @@ df_samples.σ_πv = exp.(df_samples.σ_πv)
 
 ##
 
-Σ1 = cov(Matrix(df_samples[:, [:z_R₀_1, :z_δ_1, :z_πv_1, :infection_time_1]]))
-Σ1 = cov(Matrix(df_samples[:, [:z_R₀_2, :z_δ_2, :z_πv_2, :infection_time_2]]))
-
-##
-
-samples = Matrix(df_samples)
-
-df = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
-select!(df, [:ID, :R₀, :k, :δ, :πv, :c, :infection_time])
-
-σ_β = 1.0
-σ_πv = 1.0
-σ_δ = 0.5
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for i in 1:3
-    hist!(ax, exp.(df_samples[i].σ_πv[burnin:end]), bins = 40, normalization = :pdf)
-end
-display(fig)
-
-##
-
 # induced priors
 nsamples_prior = 100_00
 prior_samples = zeros(nsamples_prior, 3)
@@ -139,201 +116,7 @@ for s in ["R₀", "δ", "πv"]
     true_pars_sample_vals["σ_" * s] = std(df_true_pars[:, s])
 end
 
-μ_R₀ = 8.0
-
-# size_inches = (7.5, 5.0)
-size_inches = (7.75, 4.5)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
-
-ax = Axis(fig[1, 1]; ax_kwargs...)
-stephist!(ax, df_samples.μ_R₀, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_R₀, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-# density!(ax, df_samples.μ_R₀, color = (colors[1], 0.5))
-plot!(ax, hyper_priors[:μ_R₀], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["μ_R₀"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.μ_R₀))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\mu_{R_0}"
-
-ax = Axis(fig[2, 1]; ax_kwargs...)
-stephist!(ax, df_samples.μ_πv, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_πv, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:μ_πv], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["μ_πv"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.μ_πv))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\mu_{\rho}"
-
-ax = Axis(fig[1, 2]; ax_kwargs...)
-stephist!(ax, df_samples.μ_δ, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_δ, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:μ_δ], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["μ_δ"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.μ_δ))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\mu_{\delta}"
-
-ax = Axis(fig[2, 2]; ax_kwargs..., xticks = 0:0.04:2.0)
-stephist!(ax, df_samples.σ_δ, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_δ, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:σ_δ], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["σ_δ"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.σ_δ))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\sigma_{\delta}"
-
-ax = Axis(fig[1, 3]; ax_kwargs..., xticks = 0:0.5:2.0)
-stephist!(ax, df_samples.σ_R₀, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_R₀, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:σ_R₀], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["σ_R₀"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.σ_R₀))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\sigma_{R_0}"
-
-ax = Axis(fig[2, 3]; ax_kwargs...)
-stephist!(ax, df_samples.σ_πv, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_πv, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:σ_πv], color = colors[2])
-vlines!(ax, [true_pars_sample_vals["σ_πv"]], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.σ_πv))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\sigma_{\rho}"
-
-ax = Axis(fig[1, 4]; ax_kwargs..., xticks = 0:0.05:2)
-stephist!(ax, df_samples.κ, bins = 30, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.κ, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-plot!(ax, hyper_priors[:κ], color = colors[2])
-vlines!(ax, [κ], color = :black, linestyle = :dash)
-xlims!(ax, get_nice_xlims_for_posterior(df_samples.κ))
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\kappa"
-
-rowgap!(fig.layout, 8)
-colgap!(fig.layout, 8)
-
-# resize_to_layout!(fig)
-
-display(fig)
-
-save(fig_loc * "sim_hyper_pars_posteriors.pdf", fig, pt_per_unit = 1.0)
-
 ##
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-hexbin!(ax, df_samples.μ_R₀, df_samples.μ_δ, bins = 50)
-scatter!(ax, df_true_hyper_pars.μ_R₀, df_true_hyper_pars.μ_δ, color = :red)
-ax = Axis(fig[1, 2])
-hexbin!(ax, df_samples.μ_R₀, df_samples.μ_πv, bins = 50)
-scatter!(ax, df_true_hyper_pars.μ_R₀, df_true_hyper_pars.μ_πv, color = :red)
-ax = Axis(fig[1, 3])
-hexbin!(ax, df_samples.μ_δ, df_samples.μ_πv, bins = 50)
-scatter!(ax, df_true_hyper_pars.μ_δ, df_true_hyper_pars.μ_πv, color = :red)
-display(fig)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-hexbin!(ax, df_samples.μ_δ ./ df_samples.μ_πv, df_samples.μ_δ, bins = 50)
-scatter!(
-    ax, df_true_hyper_pars.μ_δ ./ df_true_hyper_pars.μ_πv, df_true_hyper_pars.μ_δ, color = :red
-)
-
-display(fig)
-
-##
-
-prior_predictive_pars = Dict()
-
-n = 10000
-
-prior_predictive_pars["R₀"] =
-    rand.(Truncated.(Normal.(rand(hyper_priors[:μ_R₀], n), rand(hyper_priors[:σ_R₀], n)), 0.1, 100))
-prior_predictive_pars["δ"] =
-    rand.(Truncated.(Normal.(rand(hyper_priors[:μ_δ], n), rand(hyper_priors[:σ_δ], n)), 0.25, 100))
-prior_predictive_pars["πv"] =
-    rand.(Truncated.(Normal.(rand(hyper_priors[:μ_πv], n), rand(hyper_priors[:σ_πv], n)), 0.1, 100))
-
-posterior_predictive_pars = Dict()
-
-posterior_predictive_pars["R₀"] = df_samples.μ_R₀ + df_samples.σ_R₀ .* randn(size(df_samples, 1))
-posterior_predictive_pars["δ"] = df_samples.μ_δ + df_samples.σ_δ .* randn(size(df_samples, 1))
-posterior_predictive_pars["πv"] = df_samples.μ_πv + df_samples.σ_πv .* randn(size(df_samples, 1))
-
-size_inches = (6.5, 3.0)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
-
-ax = Axis(fig[1, 1]; ax_kwargs...)
-stephist!(ax, posterior_predictive_pars["R₀"], bins = 30, normalization = :pdf, color = colors[1])
-stephist!(ax, prior_predictive_pars["R₀"], bins = 30, normalization = :pdf, color = colors[2])
-hist!(
-    ax, posterior_predictive_pars["R₀"], bins = 30, normalization = :pdf, color = (colors[1], 0.3)
-)
-# vlines!(ax, df_true_pars.R₀, color = (:black, 0.3))
-hist!(ax, df_true_pars.R₀, color = (:black, 0.3), normalization = :pdf)
-# vlines!(ax, [true_pars_sample_vals["μ_R₀"]], color = :black, linestyle = :dash)
-xlims!(ax, 0.95 * minimum(df_true_pars.R₀), maximum(df_true_pars.R₀) * 1.05)
-ylims!(ax, low = 0.0)
-ax.xlabel = L"R_0"
-
-ax = Axis(fig[1, 2]; ax_kwargs...)
-stephist!(ax, posterior_predictive_pars["δ"], bins = 30, normalization = :pdf, color = colors[1])
-stephist!(ax, prior_predictive_pars["δ"], bins = 30, normalization = :pdf, color = colors[2])
-hist!(ax, posterior_predictive_pars["δ"], bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-# vlines!(ax, df_true_pars.δ, color = (:black, 0.3))
-hist!(ax, df_true_pars.δ, color = (:black, 0.3), normalization = :pdf)
-# vlines!(ax, [true_pars_sample_vals["μ_δ"]], color = :black, linestyle = :dash)
-xlims!(ax, 0.95 * minimum(df_true_pars.δ), maximum(df_true_pars.δ) * 1.05)
-ylims!(ax, low = 0.0)
-ax.xlabel = L"δ"
-
-ax = Axis(fig[1, 3]; ax_kwargs...)
-stephist!(ax, posterior_predictive_pars["πv"], bins = 30, normalization = :pdf, color = colors[1])
-stephist!(ax, prior_predictive_pars["πv"], bins = 30, normalization = :pdf, color = colors[2])
-hist!(
-    ax, posterior_predictive_pars["πv"], bins = 30, normalization = :pdf, color = (colors[1], 0.3)
-)
-# vlines!(ax, df_true_pars.πv, color = (:black, 0.3))
-hist!(ax, df_true_pars.πv, color = (:black, 0.3), normalization = :pdf)
-xlims!(ax, 0.95 * minimum(df_true_pars.πv), maximum(df_true_pars.πv) * 1.05)
-ylims!(ax, low = 0.0)
-ax.xlabel = L"\rho"
-
-rowgap!(fig.layout, 8)
-colgap!(fig.layout, 8)
-
-# resize_to_layout!(fig)
-
-display(fig)
-
-save(fig_loc * "sim_posterior_predictive_pars.pdf", fig, pt_per_unit = 1.0)
-
-##
-
-μ = df_samples.μ_πv
-σ_tmp = df_samples.σ_πv
-
-x = rand.(Normal.(μ, σ_tmp))
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-hist!(ax, x, normalization = :pdf, color = (:blue, 0.5), bins = 50)
-hist!(ax, df_true_pars.πv, color = (:grey, 0.5), bins = 50, normalization = :pdf)
-display(fig)
-
-##
-
-# function sample_generalized_gamma(pars)
-#     a, d, p = pars
-#     u = rand()
-#     # Use the inverse of the incomplete Gamma function
-#     y = gamma_inc_inv(d / p, u, 1 - u)
-#     # Apply transformation to obtain Generalized Gamma random variables
-#     x = a * y^(1 / p)
-#     return x
-# end
 
 function get_gg_pars_nn(θ, nn, Z0_bp, S0)
     """
@@ -363,14 +146,14 @@ end
 
 nn = load_nn()
 
-size_inches = (3, 3)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
+size_inches = (3.5, 3.0)
+size_pt = size_inches .* inch
+fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi)
 ax = Axis(fig[1, 1]; ax_kwargs...)
 
 prior_time_shift = zeros(nsamples_prior)
 
-τ_range = -3:0.01:3
+τ_range = -5:0.01:5
 nn_pars = []
 μ_w = 0.0
 
@@ -428,11 +211,13 @@ end
 # density!(ax, prior_time_shift, color = (:blue, 0.2), label = "Prior")
 # density!(ax, posterior_time_shift, color = (:red, 0.2), label = "Posterior")
 
+ax.ylabel = L"\textrm{density}"
 ax.xlabel = L"\tau"
-xlims!(-4, 4)
+xlims!(-3, 2)
 # xlims!(-4, 4)
 display(fig)
-save(fig_loc * "time_shift.pdf", fig, pt_per_unit = 1.0)
+save(fig_loc * "time_shift.png", fig, px_per_unit = dpi / inch)
+# save(fig_loc * "time_shift.pdf", fig, pt_per_unit = 1.0)
 
 ##
 

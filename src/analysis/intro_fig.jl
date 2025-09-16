@@ -16,9 +16,14 @@ include("../plotting.jl")
 # Includes relative to this files location.
 include("../tcl/tcl_simulation.jl")
 include("../tcl/default.jl")
-include("../inference_log/within_host_inference.jl")
+include("../inference/within_host_inference.jl")
 
 ##
+
+fig_loc = "figures/"
+if isdir(fig_loc) == false
+    mkdir(fig_loc)
+end
 
 # Set seed for reproducibility.
 Random.seed!(2021)
@@ -79,34 +84,33 @@ nn = load_nn()
 m = ModelInternals(Z0 = Z0, prob = prob, nn = nn)
 μ_w, λ, pars_m3 = get_gg_pars_nn(θ, m)
 
-x = -5:0.025:1
+x = -5:0.025:1.5
 y = [τ_prior(xi, pars_m3, μ_w, λ) for xi in x]
 
 ##
 
-size_inches = (6.5, 3)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
-# ax = Axis(fig[1, 1], xlabel = "time (days)", ylabel = L"\log_{10}(V)")
+size_inches = (6.5, 3.0)
+size_pt = size_inches .* inch
+fig = Figure(size = size_pt, fontsize = 10 * inch / pt, dpi = dpi)
 axs = [
     Axis(
         fig[1, 1];
         ax_kwargs...,
         yaxisposition = :left,
         xlabel = "time (days)",
-        ylabel = L"\log_{10}(V)"
+        ylabel = L"\log_{10}(\textrm{viral load})"
     ),
     Axis(
         fig[1, 2];
         ax_kwargs...,
         yaxisposition = :right,
         # xlabel = "time (days)",
-        ylabel = L"\log_{10}(V)"
+        ylabel = L"\log_{10}(\textrm{viral load})"
     ),
     Axis(
         fig[1, 2];
-        yticklabelcolor = colors[2],
-        ylabelcolor = colors[2],
+        yticklabelcolor = colors[1],
+        ylabelcolor = colors[1],
         ax_kwargs...,
         xlabel = "adjusted time (days)",
         ylabel = "density"
@@ -130,10 +134,11 @@ end
 lines!(axs[1], det_traj[:, 1], det_traj[:, 2], color = :black, linestyle = :dash)
 hlines!(axs[1], LOD, linestyle = :dash, color = :red)
 
+ylims!(axs[1], -0.05, 7.5)
 linkxaxes!(axs[2], axs[3])
 lines!(axs[2], det_traj[:, 1] .- t_det_above, det_traj[:, 2], color = :black, linestyle = :dash)
 # Need to reverse the time-shift x-values since this is now the shift to the initial conditions.
-lines!(axs[3], -x, y, color = colors[2])
+lines!(axs[3], -x, y, color = colors[1])
 ylims!(axs[2], LOD, 7.5)
 ylims!(axs[3], 0, 1.1)
 xlims!(axs[3], -1.5, 7)
@@ -141,6 +146,22 @@ xlims!(axs[3], -1.5, 7)
 axs[1].title = L"\text{(A)}"
 axs[3].title = L"\text{(B)}"
 
-fig
+rowgap!(fig.layout, 8)
+colgap!(fig.layout, 8)
 
-save("figures/time_shift_behaviour.pdf", fig, pt_per_unit = 1.0)
+resize_to_layout!(fig)
+
+# fig
+
+save(fig_loc * "time_shift_behaviour.png", fig, px_per_unit = dpi / inch)
+save(fig_loc * "time_shift_behaviour.pdf", fig, px_per_unit = dpi / inch)
+# save("figures/time_shift_behaviour.png", fig)
+# save("figures/time_shift_behaviour.png", fig, pt_per_unit = 1)
+# save("figures/time_shift_behaviour600.png", fig, px_per_unit = 600 / 72)
+
+##
+
+save("figures/time_shift_behaviour.pdf", fig, px_per_unit = 300 / 72)
+# save("figures/time_shift_behaviour.eps", fig, px_per_unit = 300 / 72)
+
+# save("figures/time_shift_behaviour.png", fig)

@@ -10,7 +10,7 @@ Random.seed!(2023)
 
 N = length(data)
 
-fig_loc = "figures/nba/"
+fig_loc = "figures/"
 if isdir(fig_loc) == false
     mkdir(fig_loc)
 end
@@ -67,25 +67,33 @@ df_samples = vcat(df_samples...)
 df = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
 select!(df, [:ID, :R₀, :k, :δ, :πv, :c, :infection_time])
 
-fig = Figure()
-ax = Axis(fig[1, 1])
-hist!(ax, df_samples[1].σ_R₀, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-hist!(ax, df_samples[2].σ_R₀, bins = 30, normalization = :pdf, color = (colors[2], 0.3))
-hist!(ax, df_samples[3].σ_R₀, bins = 30, normalization = :pdf, color = (colors[3], 0.3))
-display(fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# hist!(ax, df_samples[1].σ_R₀, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
+# hist!(ax, df_samples[2].σ_R₀, bins = 30, normalization = :pdf, color = (colors[2], 0.3))
+# hist!(ax, df_samples[3].σ_R₀, bins = 30, normalization = :pdf, color = (colors[3], 0.3))
+# display(fig)
 
 ##
 
 # size_inches = (7.5, 5.0)
 size_inches = (7.5, 4.0)
-size_pt = size_inches .* 72
-fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
+size_pt = size_inches .* inch
+fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi)
 
 ax = Axis(fig[1, 1]; ax_kwargs...)
 # stephist!(ax, df_samples.μ_R₀, bins = 30, normalization = :pdf, color = colors[1])
 # hist!(ax, df_samples.μ_R₀, bins = 30, normalization = :pdf, color = (colors[1], 0.3))
-stephist!(ax, df_samples.μ_R₀, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_R₀, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.μ_R₀, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.μ_R₀,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:μ_R₀], color = colors[2])
 # vlines!(ax, [μ_R₀], color = :black, linestyle = :dash)
 # vlines!(ax, [true_pars_sample_vals["μ_R₀"]], color = :black, linestyle = :dash)
@@ -95,8 +103,16 @@ ax.xlabel = L"\mu_{R_0}"
 ax.xticks = 10:3:25
 
 ax = Axis(fig[2, 1]; ax_kwargs...)
-stephist!(ax, df_samples.μ_πv, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_πv, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.μ_πv, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.μ_πv,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:μ_πv], color = colors[2])
 # vlines!(ax, [μ_πv], color = :black, linestyle = :dash)
 # vlines!(ax, [true_pars_sample_vals["μ_πv"]], color = :black, linestyle = :dash)
@@ -105,8 +121,16 @@ ylims!(ax, low = 0.0)
 ax.xlabel = L"\mu_{\rho}"
 
 ax = Axis(fig[1, 2]; ax_kwargs...)
-stephist!(ax, df_samples.μ_δ, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.μ_δ, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.μ_δ, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.μ_δ,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:μ_δ], color = colors[2])
 # vlines!(ax, [μ_δ], color = :black, linestyle = :dash)
 # vlines!(ax, [true_pars_sample_vals["μ_δ"]], color = :black, linestyle = :dash)
@@ -115,8 +139,16 @@ ylims!(ax, low = 0.0)
 ax.xlabel = L"\mu_{\delta}"
 
 ax = Axis(fig[2, 2]; ax_kwargs...)
-stephist!(ax, df_samples.σ_δ, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_δ, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.σ_δ, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.σ_δ,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:σ_δ], color = colors[2])
 # vlines!(ax, [σ_δ], color = :black, linestyle = :dash)
 # vlines!(ax, [true_pars_sample_vals["σ_δ"]], color = :black, linestyle = :dash)
@@ -125,8 +157,16 @@ ylims!(ax, low = 0.0)
 ax.xlabel = L"\sigma_{\delta}"
 
 ax = Axis(fig[1, 3]; ax_kwargs...)
-stephist!(ax, df_samples.σ_R₀, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_R₀, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.σ_R₀, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.σ_R₀,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:σ_R₀], color = colors[2])
 # vlines!(ax, [true_pars_sample_vals["σ_R₀"]], color = :black, linestyle = :dash)
 xlims!(ax, 0.95 * minimum(df_samples.σ_R₀), maximum(df_samples.σ_R₀) * 1.05)
@@ -134,8 +174,16 @@ ylims!(ax, low = 0.0)
 ax.xlabel = L"σ_{R_0}"
 
 ax = Axis(fig[2, 3]; ax_kwargs...)
-stephist!(ax, df_samples.σ_πv, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.σ_πv, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.σ_πv, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.σ_πv,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:σ_πv], color = colors[2])
 # vlines!(ax, [true_pars_sample_vals["σ_πv"]], color = :black, linestyle = :dash)
 xlims!(ax, 0.95 * minimum(df_samples.σ_πv), maximum(df_samples.σ_πv) * 1.05)
@@ -143,8 +191,16 @@ ylims!(ax, low = 0.0)
 ax.xlabel = L"σ_{\rho}"
 
 ax = Axis(fig[1, 4]; ax_kwargs...)
-stephist!(ax, df_samples.κ, bins = 20, normalization = :pdf, color = colors[1])
-hist!(ax, df_samples.κ, bins = 20, normalization = :pdf, color = (colors[1], 0.3))
+# stephist!(ax, df_samples.κ, bins = 20, normalization = :pdf, color = colors[1])
+hist!(
+    ax,
+    df_samples.κ,
+    bins = 20,
+    normalization = :pdf,
+    color = (colors[1], 0.3),
+    strokewidth = 0.7,
+    strokecolor = :black
+)
 plot!(ax, hyper_priors[:κ], color = colors[2])
 # vlines!(ax, [κ], color = :black, linestyle = :dash)
 xlims!(ax, 0.95 * minimum(df_samples.κ), maximum(df_samples.κ) * 1.05)
@@ -158,15 +214,11 @@ Label(fig[1:2, 0], "density", rotation = pi / 2)
 rowgap!(fig.layout, 8)
 colgap!(fig.layout, 8)
 
+resize_to_layout!(fig)
+
 display(fig)
 
-save(fig_loc * "nba_hyper_pars_posteriors.pdf", fig, pt_per_unit = 1.0)
-
-##
-
-# df_samples = CSV.read(results_dir("samples_nba.csv"), DataFrame)
-# Thin the number of samples
-# df_samples = df_samples[1:5:end, :]
+save(fig_loc * "nba_hyper_pars_posteriors.png", fig, px_per_unit = dpi / inch)
 
 ##
 

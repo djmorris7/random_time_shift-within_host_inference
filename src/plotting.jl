@@ -21,4 +21,10 @@ ax_kwargs = (
     ytickwidth = 0.7
 )
 
-colors = Makie.wong_colors()
+colors = Makie.wong_colors();
+
+dpi = 300
+inch = 96 # this is relative to 1 CSS px
+pt = 72
+fontsize_pt = 10
+fontsize = 10 * inch / pt
