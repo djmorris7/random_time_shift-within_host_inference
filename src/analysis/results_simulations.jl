@@ -13,7 +13,7 @@ df_true_pars = CSV.read(data_dir("sims/covid_parameters_$i.csv"), DataFrame)
 df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_$i.csv"), DataFrame)
 true_infection_times = df_true_pars.infection_time
 
-fig_loc = "figures/simulation/"
+fig_loc = "figures/"
 if isdir(fig_loc) == false
     mkdir(fig_loc)
 end
@@ -168,4 +168,4 @@ resize_to_layout!(fig)
 display(fig)
 
 save(fig_loc * "predictive_plot_multi_individuals.png", fig, px_per_unit = dpi / inch)
-save(fig_loc * "predictive_plot_multi_individuals.pdf", fig, pt_per_unit = 1.0)
+save(fig_loc * "predictive_plot_multi_individuals.pdf", fig)

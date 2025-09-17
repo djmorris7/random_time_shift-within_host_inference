@@ -154,14 +154,4 @@ resize_to_layout!(fig)
 # fig
 
 save(fig_loc * "time_shift_behaviour.png", fig, px_per_unit = dpi / inch)
-save(fig_loc * "time_shift_behaviour.pdf", fig, px_per_unit = dpi / inch)
-# save("figures/time_shift_behaviour.png", fig)
-# save("figures/time_shift_behaviour.png", fig, pt_per_unit = 1)
-# save("figures/time_shift_behaviour600.png", fig, px_per_unit = 600 / 72)
-
-##
-
-save("figures/time_shift_behaviour.pdf", fig, px_per_unit = 300 / 72)
-# save("figures/time_shift_behaviour.eps", fig, px_per_unit = 300 / 72)
-
-# save("figures/time_shift_behaviour.png", fig)
+save(fig_loc * "time_shift_behaviour.pdf", fig)

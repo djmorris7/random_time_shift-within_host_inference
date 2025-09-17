@@ -266,7 +266,7 @@ push!(ids, 125)
 
 size_inches = (7.25, 4)
 size_pt = size_inches .* inch
-fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi, linewidth = 1)
+fig = Figure(size = size_pt, fontsize = fontsize, dpi = dpi, linewidth = 1.5)
 
 (row, col) = (1, 1)
 
@@ -346,4 +346,4 @@ colgap!(fig.layout, 8)
 display(fig)
 
 save(fig_loc * "predictive_plot_multi_individuals_nba.png", fig, px_per_unit = dpi / inch)
-save(fig_loc * "predictive_plot_multi_individuals_nba.pdf", fig, pt_per_unit = 1.0)
+save(fig_loc * "predictive_plot_multi_individuals_nba.pdf", fig)

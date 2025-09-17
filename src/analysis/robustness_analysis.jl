@@ -3,7 +3,7 @@ include("../plotting.jl")
 
 ##
 
-fig_loc = "figures/simulation/"
+fig_loc = "figures/"
 
 posterior_summaries = DataFrame(
     "parameter" => [],
@@ -121,7 +121,7 @@ Label(fig[4, 1:3], "Simulation number")
 fig
 
 save(fig_loc * "sim_posteriors_coverage.png", fig, px_per_unit = dpi / inch)
-save(fig_loc * "sim_posteriors_coverage.pdf", fig, px_per_unit = dpi / inch)
+save(fig_loc * "sim_posteriors_coverage.pdf", fig)
 
 ##
 

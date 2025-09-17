@@ -5,7 +5,6 @@ include("results.jl")
 ##
 
 (nba_data, nba_ids) = get_cleaned_data("data/nba/nba_data_clean.csv")
-# (sim_data, sim_ids) = get_cleaned_data("data/sims/sim_data_clean.csv")
 (sim_data, sim_ids) = get_cleaned_data("data/sims/covid_data_clean_1.csv")
 
 df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
@@ -56,6 +55,4 @@ resize_to_layout!(fig)
 display(fig)
 
 save(joinpath(fig_loc, "data.png"), fig, px_per_unit = dpi / inch)
-# save(joinpath(fig_loc, "data.pdf"), fig, pt_per_unit = 1)
-# save(joinpath(fig_loc, "data.eps"), fig, pt_per_unit = 1)
-# save(joinpath(fig_loc, "data.eps"), fig, pt_per_unit = 1)
+save(joinpath(fig_loc, "data.pdf"), fig)
