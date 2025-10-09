@@ -176,12 +176,14 @@ function log10p0(x)
     in the ODE solutions (i.e. for small compartment counts near 0).
     """
     # Clip to positive values
-    z = max(x, 0)
-    if z < 1
-        return 0.0
-    else
-        return log10(z)
-    end
+    return log(max(x, 1e-6))
+    # Deprecated
+    # z = max(x, 0)
+    # if z < 1
+    #     return 0.0
+    # else
+    #     return log10(z)
+    # end
 end
 
 """
