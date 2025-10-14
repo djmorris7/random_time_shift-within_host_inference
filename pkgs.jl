@@ -12,10 +12,13 @@ using CairoMakie, LaTeXStrings
 using ForwardDiff
 using Combinatorics
 using Dates
-using ThreadsX
+using OhMyThreads
 using MCMCDiagnosticTools
 # Neural network stuff
 using Flux, JLD2, ParameterSchedulers
+using ChunkSplitters
+using Tidier: Tidier
+using TidierFiles: TidierFiles
 
 if :RandomTimeShifts_mm ∉ names(Main)
     include("./RandomTimeShifts_mm.jl/RandomTimeShifts_mm.jl")

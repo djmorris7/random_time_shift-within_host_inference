@@ -22,7 +22,7 @@ dataset_id = 1
 (data, ids) = get_cleaned_data(data_dir("sims/covid_data_clean_$dataset_id.csv"))
 # (data, ids) = get_cleaned_data(data_dir("sims/covid_data_sparse_clean_1.csv"))
 
-LOD = 2.6576090679593496
+LOD = 2.658
 # LOD = 1.0
 # LOD = 0.0
 
@@ -115,6 +115,8 @@ end
 # end
 # convert_samples_to_row(θ₀, ϕ₀)
 
+θ₀, ϕ₀ = intialise_params()
+
 id = 1
 exact_likelihood(θ₀[id], data[id], ϕ₀, M)
 laplace_approx_full_likelihood(θ₀[id], data[id], ϕ₀, M)
@@ -129,89 +131,87 @@ sum(only_like)
 
 ##
 
-# θ₀, ϕ₀ = intialise_params()
+θ₀, ϕ₀ = intialise_params()
 
-# test_id = 1
-# test_θ₀ = θ₀[test_id]
-# test_data = data[test_id]
+test_id = 1
+test_θ₀ = θ₀[test_id]
+test_data = data[test_id]
 
-# p_vals_exact = zeros(100)
-# p_vals_approx_all = zeros(100)
-# p_vals_approx = zeros(100)
+p_vals_exact = zeros(100)
+p_vals_approx_all = zeros(100)
+p_vals_approx = zeros(100)
 
-# πv_grid = range(0.5, 5, length = 100)
+πv_grid = range(0.5, 7, length = 100)
 
-# for (i, πv) in enumerate(πv_grid)
-#     test_θ₀.πv = πv
-#     p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
-# end
+for (i, πv) in enumerate(πv_grid)
+    test_θ₀.πv = πv
+    p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
+    p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
+    p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
+end
 
-# size_inches = (7.75, 3.5)
-# size_pt = size_inches .* 72
-# fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
-# ax = Axis(fig[1, 1]; ax_kwargs..., xlabel = L"\rho")
-# lines!(ax, πv_grid, p_vals_exact, color = colors[1])
-# # scatter!(ax, πv_grid, p_vals_approx, color = :blue)
-# scatter!(ax, πv_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
-
-# θ₀, ϕ₀ = intialise_params()
-
-# test_θ₀ = θ₀[test_id]
-
-# n = 100
-# p_vals_exact = zeros(n)
-# p_vals_approx_all = zeros(n)
-# p_vals_approx = zeros(n)
-
-# R0_grid = range(5, 13, length = n)
-
-# for (i, R0) in enumerate(R0_grid)
-#     test_θ₀.R₀ = R0
-#     p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     # p_vals_exact[i] = exact_likelihood(θ₀[1], data[1], ϕ₀, M)
-#     # p_vals_approx[i] = laplace_approx_only_likelihood(θ₀[1], data[1], ϕ₀, M)
-#     p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
-# end
-
-# ax = Axis(fig[1, 2]; ax_kwargs..., xlabel = L"R_0")
-# lines!(ax, R0_grid, p_vals_exact, color = colors[1])
-# # scatter!(ax, R0_grid, p_vals_approx, color = :blue)
-# lines!(ax, R0_grid, p_vals_approx_all, color = colors[2])
-# # scatter!(ax, R0_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
-
-# θ₀, ϕ₀ = intialise_params()
-
-# test_θ₀ = θ₀[test_id]
-
-# p_vals_exact = zeros(100)
-# p_vals_approx_all = zeros(100)
-# p_vals_approx = zeros(100)
-
-# δ_grid = range(1, 1.8, length = 100)
-
-# for (i, δ) in enumerate(δ_grid)
-#     test_θ₀.δ = δ
-#     p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
-#     p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
-# end
-
-# ax = Axis(fig[1, 3]; ax_kwargs..., xlabel = L"\delta")
-# lines!(ax, δ_grid, p_vals_exact, color = colors[1])
-# # scatter!(ax, δ_grid, p_vals_approx, color = :blue)
-# scatter!(ax, δ_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
-
-# rowgap!(fig.layout, 8)
-# colgap!(fig.layout, 8)
-
-# display(fig)
-
-##
+size_inches = (7.75, 3.5)
+size_pt = size_inches .* 72
+fig = Figure(size = size_pt, fontsize = 10, dpi = 300)
+ax = Axis(fig[1, 1]; ax_kwargs..., xlabel = L"\rho")
+lines!(ax, πv_grid, p_vals_exact, color = colors[1])
+# scatter!(ax, πv_grid, p_vals_approx, color = :blue)
+scatter!(ax, πv_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
 
 θ₀, ϕ₀ = intialise_params()
+
+test_θ₀ = θ₀[test_id]
+
+n = 100
+p_vals_exact = zeros(n)
+p_vals_approx_all = zeros(n)
+p_vals_approx = zeros(n)
+
+R0_grid = range(5, 15, length = n)
+
+for (i, R0) in enumerate(R0_grid)
+    test_θ₀.R₀ = R0
+    p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
+    p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
+    # p_vals_exact[i] = exact_likelihood(θ₀[1], data[1], ϕ₀, M)
+    # p_vals_approx[i] = laplace_approx_only_likelihood(θ₀[1], data[1], ϕ₀, M)
+    p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
+end
+
+ax = Axis(fig[1, 2]; ax_kwargs..., xlabel = L"R_0")
+lines!(ax, R0_grid, p_vals_exact, color = colors[1])
+# scatter!(ax, R0_grid, p_vals_approx, color = :blue)
+# lines!(ax, R0_grid, p_vals_approx_all, color = colors[2], linestyle = :dot, linewidth = 5)
+scatter!(ax, R0_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
+
+θ₀, ϕ₀ = intialise_params()
+
+test_θ₀ = θ₀[test_id]
+
+p_vals_exact = zeros(100)
+p_vals_approx_all = zeros(100)
+p_vals_approx = zeros(100)
+
+δ_grid = range(1, 1.8, length = 100)
+
+for (i, δ) in enumerate(δ_grid)
+    test_θ₀.δ = δ
+    p_vals_exact[i] = exp(exact_likelihood(test_θ₀, test_data, ϕ₀, M))
+    p_vals_approx[i] = exp(laplace_approx_only_likelihood(test_θ₀, test_data, ϕ₀, M))
+    p_vals_approx_all[i] = exp(laplace_approx_full_likelihood(test_θ₀, test_data, ϕ₀, M))
+end
+
+ax = Axis(fig[1, 3]; ax_kwargs..., xlabel = L"\delta")
+lines!(ax, δ_grid, p_vals_exact, color = colors[1])
+# scatter!(ax, δ_grid, p_vals_approx, color = :blue)
+scatter!(ax, δ_grid[1:2:end], p_vals_approx_all[1:2:end], color = colors[2], markersize = 6)
+
+rowgap!(fig.layout, 8)
+colgap!(fig.layout, 8)
+
+display(fig)
+
+save(fig_loc * "profile_likelihoods.pdf", fig, px_per_unit = dpi / inch)
 
 ##
 
@@ -230,17 +230,23 @@ N_shared_pars = sum(1 - v for (k, v) in fixed_shared_params)
 
 Random.seed!(10)
 
-samples = metropolis_within_gibbs(θ₀, ϕ₀, data, Σs, 100_000, M_threads; save_every = 1)
+samples = metropolis_within_gibbs(
+    θ₀, ϕ₀, data, Σs, 100_000, M_threads; save_every = 1, print_freq = 1.0
+)
 
 df = create_sampling_df(N, samples)
 
+# df = CSV.read(results_dir("sim_samples/dataset_1/samples_1.csv"), DataFrame)
+
 ##
+
+burnin = 20_000
 
 scale = (2.38 / sqrt(N_indiv_pars))^2
 
 for i in 1:N
-    df_tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
-    tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
+    df_tmp = Matrix(df[burnin:end, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
+    tmp = Matrix(df[burnin:end, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
     Σs[i] = scale * cov(tmp)
     θ₀[i].z_R₀ = mean(df_tmp[:, 1])
     θ₀[i].z_δ = mean(df_tmp[:, 2])
@@ -253,7 +259,7 @@ end
 
 # scale = (2.38 / sqrt(N_shared_pars))^2
 
-Σs[end] = 0.1 * cov(Matrix(df[:, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
+Σs[end] = 0.15 * cov(Matrix(df[burnin:end, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
 ϕ₀.μ_R₀ = mean(df[:, "μ_R₀"])
 ϕ₀.log_σ_R₀ = mean(df[:, "σ_R₀"])
 ϕ₀.μ_δ = mean(df[:, "μ_δ"])
@@ -317,7 +323,7 @@ for i in 1:3
     end
 end
 
-N_reps = 50
+N_datasets = 200
 
 # Make results_dir just return a joined path
 results_dir(subpath) = joinpath("results", subpath)
@@ -329,7 +335,7 @@ function check_exist_mkdir(dir)
     end
 end
 
-for n in 1:N_reps
+for n in 1:N_datasets
     dir_path = results_dir("sim_samples/dataset_$n/")
     check_exist_mkdir(dir_path)
 end
@@ -338,8 +344,43 @@ end
 
 thin = 4
 burnin = 20000
+# burnin = 1
+num_samples = 100_000
 
-for n in 1:50
+n = 1
+
+(data, ids) = get_cleaned_data(data_dir("sims/covid_data_clean_$n.csv"))
+
+for (i, (θ₀, ϕ₀)) in enumerate(initial_parameter_sets)
+    println("Starting chain $i...")
+    samples = metropolis_within_gibbs(
+        θ₀,
+        ϕ₀,
+        data,
+        Σs,
+        num_samples,
+        M_threads;
+        fixed_params = fixed_params,
+        save_every = 1,
+        print_freq = 30.0
+    )
+    println("Finished chain $i.")
+
+    # Remove burnin (blindly), then thin
+    samples = samples[burnin:thin:end, :]
+
+    df = create_sampling_df(N, samples)
+
+    loc = results_dir("sim_samples/dataset_$n/samples_$i.csv")
+
+    CSV.write(loc, df)
+end
+
+##
+
+using Tidier: Tidier
+
+for n in 51:100
     println("Starting inference on dataset $n...")
 
     (data, ids) = get_cleaned_data(data_dir("sims/covid_data_clean_$n.csv"))
@@ -347,7 +388,15 @@ for n in 1:50
     for (i, (θ₀, ϕ₀)) in enumerate(initial_parameter_sets)
         println("Starting chain $i...")
         samples = metropolis_within_gibbs(
-            θ₀, ϕ₀, data, Σs, 100_000, M_threads; fixed_params = fixed_params, save_every = 1
+            θ₀,
+            ϕ₀,
+            data,
+            Σs,
+            num_samples,
+            M_threads;
+            fixed_params = fixed_params,
+            save_every = 1,
+            print_freq = 30.0
         )
         println("Finished chain $i.")
 
@@ -356,12 +405,19 @@ for n in 1:50
 
         df = create_sampling_df(N, samples)
 
+        # Only save the population parameters to save space
+        df_new = Tidier.@chain df begin
+            select(:μ_R₀, :σ_R₀, :μ_δ, :σ_δ, :μ_πv, :σ_πv, :κ)
+        end
+
         loc = results_dir("sim_samples/dataset_$n/samples_$i.csv")
 
-        CSV.write(loc, df)
+        CSV.write(loc, df_new)
     end
 
     println("Finished dataset $n.")
     println("")
     println("==========")
 end
+
+##

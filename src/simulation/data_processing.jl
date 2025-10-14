@@ -6,7 +6,7 @@ for processes like the conversion of CT values to viral loads.
 
 using CSV, DataFrames
 
-include("../inference_log/data_structures.jl")
+include("../inference/data_structures.jl")
 include("../io.jl")
 
 function ct_to_vl(c; intercept = 40.93733, slope = -3.60971)

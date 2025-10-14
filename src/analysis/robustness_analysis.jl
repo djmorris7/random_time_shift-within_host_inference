@@ -17,7 +17,7 @@ posterior_summaries = DataFrame(
 
 hyper_param_symbols = [:μ_R₀, :σ_R₀, :μ_δ, :σ_δ, :μ_πv, :σ_πv, :κ]
 
-@showprogress for n in 1:50
+@showprogress for n in 1:200
     loc = results_dir("sim_samples/dataset_$n/")
 
     df = vcat([CSV.read(loc * "samples_$i.csv", DataFrame) for i in 1:3]...)
@@ -93,8 +93,8 @@ for (i, param) in enumerate(hyper_param_symbols)
     row, col = divrem(i - 1, n_cols) .+ 1
     ax = Axis(fig[row, col]; ylabel = param_map[param], ax_kwargs...)
 
-    # Filter simulations for this parameter
-    df = filter(r -> r.parameter == string(param), posterior_summaries)
+    # Filter simulations for this parameter and keep the first 50
+    df = filter(r -> r.parameter == string(param), posterior_summaries)[1:50, :]
 
     xs = df.simulation_no
     meds = df[!, "median"]
@@ -134,23 +134,37 @@ interval_widths_avg = Dict(s => 0.0 for s in hyper_param_symbols)
 interval_widths_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
 biases = Dict(s => 0.0 for s in hyper_param_symbols)
 biases_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
+means = Dict(s => 0.0 for s in hyper_param_symbols)
+means_ci = Dict(s => [Inf, Inf] for s in hyper_param_symbols)
 
 for (k, v) in coverage
     df_tmp = filter(r -> r.parameter == string(k), posterior_summaries)
     coverage[k] = sum(df_tmp.covers) / nrow(df_tmp)
     widths = df_tmp[:, "0.975"] .- df_tmp[:, "0.025"]
     interval_widths_avg[k] = mean(widths)
-    interval_widths_ci[k] .= round.(quantile(widths, (0.1, 0.9)), digits = 3)
+    interval_widths_ci[k] .= round.(quantile(widths, (0.025, 0.975)), digits = 3)
 
     biases_tmp = (df_tmp.mean .- df_tmp.true_value[1]) ./ df_tmp.true_value[1]
     biases[k] = mean(biases_tmp)
-    biases_ci[k] .= round.(quantile(biases_tmp, (0.1, 0.9)), digits = 3)
+    biases_ci[k] .= round.(quantile(biases_tmp, (0.025, 0.975)), digits = 3)
+
+    means[k] = mean(df_tmp.mean)
+    means_ci[k] .= round.(quantile(df_tmp.mean, (0.025, 0.975)), digits = 3)
 end
 
 ##
 
+println("Parameter coverage (95% CI):")
 coverage
+println("Parameter average 95% CI widths (2.5%, 97.5%):")
 interval_widths_avg
+println("Parameter 95% CI widths (2.5%, 97.5%):")
 interval_widths_ci
+println("Parameter average relative biases:")
 biases
+println("Parameter relative biases (2.5%, 97.5%):")
 biases_ci
+println("Parameter posterior means:")
+means
+println("Parameter posterior means (2.5%, 97.5%):")
+means_ci

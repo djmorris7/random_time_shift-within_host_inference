@@ -19,7 +19,7 @@ N = length(data)
 
 order = sortperm([length(data[i].vl) for i in eachindex(data)])
 
-idx = 24
+idx = 37
 
 fig = Figure()
 ax = Axis(fig[1, 1])
@@ -62,8 +62,9 @@ display(fig)
 
 ##
 
-df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
-df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
+# Note that these are not the actual true parameters. These are just used for initialisation.
+df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_1.csv"), DataFrame)
+df_true_pars = CSV.read(data_dir("sims/covid_parameters_1.csv"), DataFrame)
 
 # Now check to see that extinction prob calculation is equal no matter the way we get it
 S0 = Int(8e7)
@@ -142,18 +143,29 @@ N_shared_pars = sum(1 - v for (k, v) in fixed_shared_params)
 Random.seed!(100)
 
 samples = metropolis_within_gibbs(
-    θ₀, ϕ₀, data, Σs, 100_000, M_threads; fixed_params = fixed_params, save_every = 1
+    θ₀,
+    ϕ₀,
+    data,
+    Σs,
+    200_000,
+    M_threads;
+    fixed_params = fixed_params,
+    save_every = 1,
+    print_freq = 1.0
 )
 
 df = create_sampling_df(N, samples)
 
 ##
 
+burnin = 20_000
+
 scalings = [2.38^2 / size(Σs[i], 1) for i in 1:(N + 1)]
 scalings[end] = 0.1
 for i in 1:N
-    df_tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
-    tmp = Matrix(df[:, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
+    df_tmp = Matrix(df[burnin:end, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
+    tmp = Matrix(df[burnin:end, ["z_R₀_$i", "z_δ_$i", "z_πv_$i", "infection_time_$i"]])
+
     Σs[i] = 1.2 * cov(tmp)
     θ₀[i].z_R₀ = mean(df_tmp[:, 1])
     θ₀[i].z_δ = mean(df_tmp[:, 2])
@@ -166,7 +178,7 @@ end
 
 scale = (2.38 / sqrt(N_shared_pars))^2
 
-Σs[end] = 0.05 * cov(Matrix(df[:, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
+Σs[end] = 0.05 * cov(Matrix(df[burnin:end, ["μ_R₀", "σ_R₀", "μ_δ", "σ_δ", "μ_πv", "σ_πv", "κ"]]))
 ϕ₀.μ_R₀ = mean(df[:, "μ_R₀"])
 ϕ₀.log_σ_R₀ = mean(df[:, "σ_R₀"])
 ϕ₀.μ_δ = mean(df[:, "μ_δ"])
@@ -175,9 +187,9 @@ scale = (2.38 / sqrt(N_shared_pars))^2
 ϕ₀.log_σ_πv = mean(df[:, "σ_πv"])
 ϕ₀.κ = mean(df[:, "κ"])
 
-if !isdir(results_dir("nba_tuned_covariances"))
-    mkdir(results_dir("nba_tuned_covariances"))
-end
+# if !isdir(results_dir("nba_tuned_covariances"))
+#     mkdir(results_dir("nba_tuned_covariances"))
+# end
 
 ##
 
@@ -185,12 +197,13 @@ function sample_starting_points(all_params, shared_params)
     θ₀ = deepcopy(all_params)
     ϕ₀ = deepcopy(shared_params)
 
+    # Not perturbing scale parameters
     ϕ₀.μ_R₀ = ϕ₀.μ_R₀ + randn() * 1.5
-    ϕ₀.log_σ_R₀ = ϕ₀.log_σ_R₀ + randn()
+    ϕ₀.log_σ_R₀ = ϕ₀.log_σ_R₀
     ϕ₀.μ_δ = ϕ₀.μ_δ + randn()
-    ϕ₀.log_σ_δ = ϕ₀.log_σ_δ + randn()
+    ϕ₀.log_σ_δ = ϕ₀.log_σ_δ
     ϕ₀.μ_πv = ϕ₀.μ_πv + randn()
-    ϕ₀.log_σ_πv = ϕ₀.log_σ_πv + randn()
+    ϕ₀.log_σ_πv = ϕ₀.log_σ_πv
     ϕ₀.κ = ϕ₀.κ + randn()
 
     if isinf(shared_prior(ϕ₀))
@@ -243,7 +256,7 @@ thin = 5
 for (i, (θ₀, ϕ₀)) in enumerate(initial_parameter_sets)
     println("Starting chain $i...")
     samples = metropolis_within_gibbs(
-        θ₀, ϕ₀, data, Σs, 100_000, M_threads; fixed_params = fixed_params, save_every = 1
+        θ₀, ϕ₀, data, Σs, 200_000, M_threads; fixed_params = fixed_params, save_every = 1
     )
     df = create_sampling_df(N, samples)
     df.σ_R₀ = exp.(df.σ_R₀)

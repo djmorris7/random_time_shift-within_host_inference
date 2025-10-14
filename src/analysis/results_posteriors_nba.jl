@@ -17,7 +17,7 @@ end
 
 ##
 
-df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
+df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_1.csv"), DataFrame)
 
 # Now check to see that extinction prob calculation is equal no matter the way we get it
 S0 = Int(8e7)
@@ -60,7 +60,37 @@ integrator = f -> quadgk(f, -7, 7)[1]
 df_samples = [CSV.read(results_dir("samples_nba_$i.csv"), DataFrame) for i in 1:3]
 df_samples = vcat(df_samples...)
 
-df = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
+function summarise_samples(df_samples)
+    μ_R₀ = mean(df_samples.μ_R₀)
+    σ_R₀ = mean(df_samples.σ_R₀)
+    μ_δ = mean(df_samples.μ_δ)
+    σ_δ = mean(df_samples.σ_δ)
+    μ_πv = mean(df_samples.μ_πv)
+    σ_πv = mean(df_samples.σ_πv)
+    κ = mean(df_samples.κ)
+
+    μ_R₀_cri = quantile(df_samples.μ_R₀, [0.025, 0.975])
+    σ_R₀_cri = quantile(df_samples.σ_R₀, [0.025, 0.975])
+    μ_δ_cri = quantile(df_samples.μ_δ, [0.025, 0.975])
+    σ_δ_cri = quantile(df_samples.σ_δ, [0.025, 0.975])
+    μ_πv_cri = quantile(df_samples.μ_πv, [0.025, 0.975])
+    σ_πv_cri = quantile(df_samples.σ_πv, [0.025, 0.975])
+    κ_cri = quantile(df_samples.κ, [0.025, 0.975])
+
+    # print them out nicely in a table
+    println("Parameter means:")
+    println("μ_R₀: $μ_R₀", " (95% CI: ", μ_R₀_cri[1], ", ", μ_R₀_cri[2], ")")
+    println("σ_R₀: $σ_R₀", " (95% CI: ", σ_R₀_cri[1], ", ", σ_R₀_cri[2], ")")
+    println("μ_δ: $μ_δ", " (95% CI: ", μ_δ_cri[1], ", ", μ_δ_cri[2], ")")
+    println("σ_δ: $σ_δ", " (95% CI: ", σ_δ_cri[1], ", ", σ_δ_cri[2], ")")
+    println("μ_πv: $μ_πv", " (95% CI: ", μ_πv_cri[1], ", ", μ_πv_cri[2], ")")
+    println("σ_πv: $σ_πv", " (95% CI: ", σ_πv_cri[1], ", ", σ_πv_cri[2], ")")
+    println("κ: $κ", " (95% CI: ", κ_cri[1], ", ", κ_cri[2], ")")
+
+    return nothing
+end
+
+df = CSV.read(data_dir("sims/covid_parameters_1.csv"), DataFrame)
 select!(df, [:ID, :R₀, :k, :δ, :πv, :c, :infection_time])
 
 ##

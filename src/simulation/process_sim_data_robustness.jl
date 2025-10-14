@@ -3,8 +3,8 @@ This script reads in the simulated data and processes it to a sensible
 format for our work. The data is then saved to a CSV file for later use.
 """
 
-include("../inference_log/within_host_inference.jl")
-include("../inference_log/mcmc.jl")
+include("../inference/within_host_inference.jl")
+include("../inference/mcmc.jl")
 include("../plotting.jl")
 include("../io.jl")
 include("data_processing.jl")
@@ -127,7 +127,10 @@ CSV.write("data/sims/covid_data_clean_$i.csv", df_data)
 
 ##
 
-for i in 1:100
+N_datasets = length(filter(f -> occursin(r"data_\d+\.csv$", f), readdir(data_dir("sims"))))
+
+for i in 1:N_datasets
+    @info "Processing dataset $i / $N_datasets"
     params_loc = data_dir("sims/covid_parameters_$i.csv")
     data_loc = data_dir("sims/covid_data_$i.csv")
 

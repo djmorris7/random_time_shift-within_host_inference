@@ -13,22 +13,8 @@ include("../../pkgs.jl")
 include("../io.jl")
 # Includes relative to this files location.
 include("../tcl/tcl_simulation.jl")
-include("../inference_log/priors.jl")
-include("../inference_log/within_host_inference.jl")
-
-function log10p0(x)
-    """
-    Compute the log10 of x but clip to positive values to deal with instabilities
-    in the ODE solutions (i.e. for small compartment counts near 0).
-    """
-    # Clip to positive values
-    z = max(x, 0)
-    if z > 1
-        return log10(z)
-    else
-        return 0.0
-    end
-end
+include("../inference/priors.jl")
+include("../inference/within_host_inference.jl")
 
 function tcl_deterministic!(dx, x, pars, t; S0 = S0)
     """
@@ -201,7 +187,7 @@ function approx_sample_tcl(pars, t_inf, Z0_bp, nn, prob, T_obs)
         y[i] = get_μ(t_obs, τ, sol)
     end
 
-    y[y .<= 0.0] .= 0.0  # Ensure no negative log values
+    # y[y .<= 0.0] .= 0.0  # Ensure no negative log values
 
     return (t_save, y, τ)
 end
@@ -292,7 +278,7 @@ function sim_till_valid(priors, hyper_params, Z0_bp, nn, prob, T_obs)
     # pad 5 days of zeros at the start
     for _ in 1:5
         pushfirst!(o, o[1] - 1)
-        pushfirst!(y, 0.0)
+        pushfirst!(y, log10p0(0.0))
     end
 
     return (o, y, θ, t_inf, τ)

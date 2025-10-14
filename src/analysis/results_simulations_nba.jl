@@ -9,8 +9,8 @@ Random.seed!(2023)
 
 N = length(data)
 
-df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
-df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
+df_true_pars = CSV.read(data_dir("sims/covid_parameters_1.csv"), DataFrame)
+df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_1.csv"), DataFrame)
 
 fig_loc = "figures/"
 if isdir(fig_loc) == false
@@ -315,7 +315,7 @@ j = 1
     plot!(ax, data[id].obs_times, data[id].vl, color = :black, markersize = 4)
     text!(
         ax,
-        13,
+        12,
         8,
         text = "ID: $(id_mapping[id])",
         fontsize = 8,
@@ -323,10 +323,8 @@ j = 1
         align = (:center, :bottom)
     )
 
-    ylims!(ax, low = 0)
-
-    low = min(minimum(data[id].obs_times) - 1, -10)
-    xlims!(ax, low = low, high = 21)
+    # ylims!(ax, low = 0)
+    xlims!(ax, low = -10, high = 17)
 
     ylims!(ax, low = 0.95 * LOD)
 

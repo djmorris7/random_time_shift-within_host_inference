@@ -159,7 +159,7 @@ function get_gg_pars(θ::Params, M::ModelInternals)
 end
 
 # --- Likelihood and priors ---
-function measurement_model(y, μ, κ; lod = 2.65761, epsilon = 1e-3)
+function measurement_model(y, μ, κ; lod = 2.658, epsilon = 1e-3)
     if y > lod
         return logpdf(Normal(μ, κ), y)
     elseif y <= lod
@@ -175,8 +175,19 @@ function log10p0(x)
     Compute the log10 of x but clip to positive values to deal with instabilities
     in the ODE solutions (i.e. for small compartment counts near 0).
     """
+    # z = max(x, 0)
+
+    # println("x: $x")
+    # if z < 1
+    #     println("z < 1 : $z\n")
+    # else
+    #     println("z >= 1 : $(log10(z))")
+    # end
+    # out = log(max(x, 1e-5))
+    # println("Original x: $out")
+    # println("")
     # Clip to positive values
-    return log(max(x, 1e-6))
+    return log10(max(x, 1e-5))
     # Deprecated
     # z = max(x, 0)
     # if z < 1
@@ -201,7 +212,7 @@ function get_μ(t, τ, sol)
     # or not. If the time is before the infection time, set the viral load to 0
     # We also set the viral load to 0 if the actual evaluation time is before the
     # infection time too since sol(t + τ) for t + τ < t_inf is not valid.
-    if t < t_inf || t_eval < t_inf
+    if (t < t_inf) || (t_eval < t_inf)
         return log10p0(sol.u[1])
     elseif t_eval > sol.t[end]
         return log10p0(sol.u[end])
@@ -318,19 +329,25 @@ function get_τ_prior_nn(θ::Params, M::ModelInternals)
     """
     Computes the prior for the time shift parameter τ using the neural network.
     """
-    μ_w, λ, pars_m3 = get_gg_pars_nn(θ, M)
-    # μ_w, λ, pars_m3 = get_gg_pars(θ, M)
-    # We are only interested in cases where λ > 0 since this is means that the
-    # infection grows
-    early_return = λ <= 0
+    # Add this try catch block to handle cases where either the gg_pars can't be grabbed or the
+    # eigen-solve for the BP stuff fails (i.e. getting lambda).
+    try
+        μ_w, λ, pars_m3 = get_gg_pars_nn(θ, M)
+        # We are only interested in cases where λ > 0 since this is means that the
+        # infection grows
+        early_return = λ <= 0
+        if early_return
+            return nothing, early_return
+        end
 
-    if early_return
-        return nothing, early_return
+        p1_τ = x -> log_τ_prior(x, pars_m3, μ_w, λ)
+
+        return p1_τ, early_return
+    catch
+        return nothing, true
     end
+    # μ_w, λ, pars_m3 = get_gg_pars(θ, M)
 
-    p1_τ = x -> log_τ_prior(x, pars_m3, μ_w, λ)
-
-    return p1_τ, early_return
 end
 
 function laplace_approx_only_likelihood(
@@ -356,11 +373,9 @@ function laplace_approx_only_likelihood(
     ℓ_0, p2_τ = laplace_approx_likelihood(θ, individual_data, ϕ, M)
     p_τ = x -> exp(p1_τ(x)) * p2_τ(x)
 
-    # log_like += log(1 - q)
-
     I = log_integrate_likelihood(p_τ)
 
-    loglike = log(1 - q) + ℓ_0 + I
+    loglike = ℓ_0 + I
 
     return loglike
 end
@@ -391,7 +406,7 @@ function exact_likelihood(
 
     I = log_integrate_likelihood(p_τ)
 
-    loglike = log(1 - q) + I
+    loglike = I
 
     return loglike
 end
@@ -521,7 +536,7 @@ function laplace_approx_full_likelihood(
     @unpack_SharedParams ϕ
 
     ode_model_pars = (R₀, k, δ, πv, c)
-    M.prob = remake(M.prob; p = ode_model_pars, tspan = (infection_time, infection_time + 40.0))
+    M.prob = remake(M.prob; p = ode_model_pars, tspan = (infection_time, infection_time + 30.0))
     # Using a smaller relative tolerance to ensure that the approximation does not become
     # discontinuous through numerical instabilities.
     M.sol = solve(M.prob, Tsit5(); save_idxs = 4, reltol = 1e-4)
@@ -543,8 +558,6 @@ function likelihood(θ::Params, individual_data::IndividualData, ϕ::SharedParam
     Computes the likelihood for a single individual.
     """
     loglike = laplace_approx_full_likelihood(θ, individual_data, ϕ, M)
-    # loglike = exact_likelihood(θ, individual_data, ϕ, M)
-    # loglike = laplace_approx_only_likelihood(θ, individual_data, ϕ, M)
     return loglike
 end
 

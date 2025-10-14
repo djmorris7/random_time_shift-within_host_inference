@@ -50,20 +50,6 @@ t_inf = 15.2
 model_pars = deepcopy(μ)
 prob = ODEProblem(tcl_deterministic!, u0, (0, 20), model_pars)
 sol = solve(prob, Tsit5(); abstol = 1e-8, reltol = 1e-8, save_idxs = 4)
-sol2 = solve(prob, Tsit5(); save_idxs = 4)
-sol3 = solve(prob, Tsit5(); save_idxs = 4, saveat = 0:1:20)
-
-t_save = 0:1:20
-V1 = log10p0.(sol.(t_save))
-V2 = log10p0.(sol2.(t_save))
-V3 = log10p0.(sol3.u)
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-scatter!(ax, t_save, V1 - V2, color = :red)
-scatter!(ax, t_save, V2 - V3, color = :blue)
-# scatter!(ax, t_save, V2, color = :red)
-display(fig)
 
 V_det = log10p0.(sol.u)
 
@@ -148,33 +134,19 @@ hyper_params = Dict(
 
 ##
 
-θ, t_inf = sample_prior_params(priors, hyper_params)
-o, y, y_no_lod = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
-# θ, t_inf = sample_prior_params(priors, hyper_params)
-o1, y1, y1_no_lod = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
+# n_samples = 1000
 
-println(is_sim_valid(o, y))
-println(is_sim_valid(o1, y1))
-
-θs = stack([sample_prior_params(priors, hyper_params)[1] for _ in 1:10000])
-
-hist(θs[3, :])
-
-##
-
-n_samples = 1000
-
-fig = Figure()
-ax = Axis(fig[1, 1])
-for n in 1:n_samples
-    o, y = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
-    if is_sim_valid(o, y)
-        lines!(ax, o, y, color = (:black, 0.3))
-    end
-end
-xlims!(floor(t_inf) - 2, 0)
-vlines!(ax, [t_inf], color = :red)
-display(fig)
+# fig = Figure()
+# ax = Axis(fig[1, 1])
+# for n in 1:n_samples
+#     o, y = approx_sample_tcl(θ, t_inf, Z0_bp, nn, prob, T_obs)
+#     if is_sim_valid(o, y)
+#         lines!(ax, o, y, color = (:black, 0.3))
+#     end
+# end
+# xlims!(floor(t_inf) - 2, 0)
+# vlines!(ax, [t_inf], color = :red)
+# display(fig)
 
 ##
 
@@ -195,12 +167,14 @@ display(fig)
 
 Random.seed!(2025)
 
-N_reps = 100
-
+N_datasets = 200
 N = 100
-# N = 100
 
-@showprogress for i in 1:N_reps
+if !isdir(data_dir("sims"))
+    mkpath(data_dir("sims"))
+end
+
+@showprogress for i in 1:N_datasets
     θ = deepcopy(μ)
 
     IDs = Vector{Int}()

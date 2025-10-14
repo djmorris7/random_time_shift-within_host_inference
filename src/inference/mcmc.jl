@@ -246,11 +246,6 @@ function vec_to_shared_params(vec::Vector{Float64})
     return SharedParams(vec...)
 end
 
-#! DEPRECATED
-# function convert_samples_to_row(θ_curr, ϕ_curr)
-#     return vcat([params_to_vec(θ_i) for θ_i in θ_curr]..., shared_params_to_vec(ϕ_curr))
-# end
-
 function convert_samples_to_row(θ_curr, ϕ_curr)
     row = []
     for i in eachindex(θ_curr)
@@ -294,6 +289,8 @@ function compute_acceptance_rates(mcmc_stats, n_current, n_total)
     return (accepted_percent_individual, accepted_percent_shared)
 end
 
+##
+
 function step_one!(
     mcmc_params::MCMC_Params, mcmc_probs::MCMC_Probs, data, M_threads, mcmc_stats, fixed_params, Σs
 )
@@ -306,37 +303,48 @@ function step_one!(
 
     N = length(data)
 
-    # 1. Sample individual parameters given current shared parameters
-    Threads.@threads for i in 1:N
-        # Propose parameter and check it's in support before doing more work
-        is_in_support = θ_proposal!(
-            θ_prop[i], θ_curr[i], ϕ_curr, Σs[i]; fixed_params = fixed_params
-        )
-        mcmc_stats[:n_total_proposals_individual][i] += 1
+    # 1. Sample individual parameters given current shared parameters, synchronously over the chunks
+    # i.e. so they don't finish early.
+    @sync for (chunk_idx, chunk) in
+              enumerate(ChunkSplitters.index_chunks(1:N; n = Threads.nthreads()))
+        # Spawn a thread for each chunk, and give it it's own model internals
+        Threads.@spawn begin
+            M_local = M_threads[chunk_idx]
 
-        # Compute current target density
-        # TODO: Check that this is actually correctly calculated at this point...
-        # current_individual_likelihoods[i] = likelihood(
-        #     θ_curr[i], data[i], ϕ_curr, M_threads[Threads.threadid()]
-        # )
-        current_individual_posteriors[i] =
-            current_individual_likelihoods[i] + individual_prior(θ_curr[i], ϕ_curr)
+            # Loop over the individuals in this chunk and do metropolis steps
+            for i in chunk
+                # Propose parameter and check it's in support before doing more work
+                is_in_support = θ_proposal!(
+                    θ_prop[i], θ_curr[i], ϕ_curr, Σs[i]; fixed_params = fixed_params
+                )
+                mcmc_stats[:n_total_proposals_individual][i] += 1
 
-        # Compute density of proposed point
-        proposed_individual_posteriors[i] = individual_prior(θ_prop[i], ϕ_curr)
+                # Compute density of current point
+                current_individual_posteriors[i] =
+                    current_individual_likelihoods[i] + individual_prior(θ_curr[i], ϕ_curr)
 
-        # Only compute the liklelihood if the point has prior density
-        if is_in_support && !isinf(proposed_individual_posteriors[i])
-            proposed_individual_likelihoods[i] = likelihood(
-                θ_prop[i], data[i], ϕ_curr, M_threads[Threads.threadid()]
-            )
-            proposed_individual_posteriors[i] += proposed_individual_likelihoods[i]
+                # Compute density of proposed point
+                proposed_individual_posteriors[i] = individual_prior(θ_prop[i], ϕ_curr)
 
-            if accept_reject(proposed_individual_posteriors[i], current_individual_posteriors[i])
-                fill_θ!(θ_curr[i], θ_prop[i])
-                current_individual_posteriors[i] = proposed_individual_posteriors[i]
-                current_individual_likelihoods[i] = proposed_individual_likelihoods[i]
-                mcmc_stats[:n_accepted_proposals_individual][i] += 1
+                # Only compute the liklelihood if the point has prior density
+                if is_in_support && !isinf(proposed_individual_posteriors[i])
+                    # println("Thread $tid working on individual $i")
+                    # println(length(M_threads))
+
+                    proposed_individual_likelihoods[i] = likelihood(
+                        θ_prop[i], data[i], ϕ_curr, M_local
+                    )
+                    proposed_individual_posteriors[i] += proposed_individual_likelihoods[i]
+
+                    if accept_reject(
+                        proposed_individual_posteriors[i], current_individual_posteriors[i]
+                    )
+                        fill_θ!(θ_curr[i], θ_prop[i])
+                        current_individual_posteriors[i] = proposed_individual_posteriors[i]
+                        current_individual_likelihoods[i] = proposed_individual_likelihoods[i]
+                        mcmc_stats[:n_accepted_proposals_individual][i] += 1
+                    end
+                end
             end
         end
     end
@@ -378,18 +386,24 @@ function step_two!(
     if is_in_support && !isinf(proposed_shared_posterior)
         # Compute the conditional posterior given current individual parameters and
         # proposed shared parameters. Don't add individual prior contributions here.
-        Threads.@threads for i in 1:N
-            # for i in 1:N
-            proposed_individual_likelihoods[i] = likelihood(
-                θ_prop[i], data[i], ϕ_prop, M_threads[Threads.threadid()]
-            )
+        @sync for (chunk_idx, chunk) in
+                  enumerate(ChunkSplitters.index_chunks(1:N; n = Threads.nthreads()))
+            # Spawn a thread for each chunk and then loop over all the individuals in that chunk.
+            Threads.@spawn begin
+                for i in chunk
+                    # for i in 1:N
+                    proposed_individual_likelihoods[i] = likelihood(
+                        θ_prop[i], data[i], ϕ_prop, M_threads[chunk_idx]
+                    )
+                end
+            end
         end
 
+        # Sum up likelihood contributions and prior contributions
         proposed_shared_posterior += sum(proposed_individual_likelihoods)
         proposed_shared_posterior += sum(
             individual_prior(θ_prop[i], ϕ_prop) for i in eachindex(θ_prop)
         )
-
         # Get jacobian of the log-transformation to handle that we're sampling in the log-variance space
         adj_dens = get_det_jacobian(ϕ_prop, ϕ_curr)
 
@@ -431,7 +445,8 @@ function metropolis_within_gibbs(
     burnin = 30_000,
     save_every = 10,
     fixed_shared_params = fixed_shared_params,
-    fixed_individual_params = fixed_individual_params
+    fixed_individual_params = fixed_individual_params,
+    print_freq = 10.0
 )
     """
     The Metropolis-Hastings within Gibbs sampler for our hierarchical model. This function
@@ -491,7 +506,7 @@ function metropolis_within_gibbs(
     n_curr = 1
 
     # Instantiate a progress bar that updates every 10 seconds
-    p = Progress(n_samples; showspeed = true, dt = 30.0)
+    p = Progress(n_samples; showspeed = true, dt = print_freq)
 
     for n in 1:n_samples
         # Sample the individual parameters
