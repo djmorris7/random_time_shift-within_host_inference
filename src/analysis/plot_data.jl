@@ -7,8 +7,8 @@ include("results.jl")
 (nba_data, nba_ids) = get_cleaned_data("data/nba/nba_data_clean.csv")
 (sim_data, sim_ids) = get_cleaned_data("data/sims/covid_data_clean_1.csv")
 
-df_true_pars = CSV.read(data_dir("sims/parameters.csv"), DataFrame)
-df_true_hyper_pars = CSV.read(data_dir("sims/hyper_parameters.csv"), DataFrame)
+df_true_pars = CSV.read(data_dir("sims/covid_parameters_1.csv"), DataFrame)
+df_true_hyper_pars = CSV.read(data_dir("sims/covid_hyper_parameters_1.csv"), DataFrame)
 
 true_infection_times = df_true_pars[!, :infection_time]
 

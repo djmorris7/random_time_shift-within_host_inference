@@ -72,6 +72,7 @@ n_cols = 3
 
 # Create the figure with enough panels (will leave some empty if needed)
 size_inches = (7.25, 5.5)
+# size_inches = (7.25, 4)
 size_pt = size_inches .* inch
 fig = Figure(
     size = size_pt, fontsize = fontsize, dpi = dpi, sharex = true, sharey = true, linewidth = 1
@@ -109,14 +110,19 @@ for (i, param) in enumerate(hyper_param_symbols)
 
     # Plot the true value as horizontal red line
     hlines!(ax, truth_map[String(param)], color = :red, linestyle = :dash)
+    # ax.xlabel = "Simulation number"
+    if row == 3
+        ax.xlabel = "Simulation number"
+    elseif row == 2 && col != 1
+        ax.xlabel = "Simulation number"
+    end
 end
 
-rowgap!(fig.layout, 8)
-colgap!(fig.layout, 8)
+# Label(fig[3, 1:4], "Simulation number")
 
 resize_to_layout!(fig)
-
-Label(fig[4, 1:3], "Simulation number")
+rowgap!(fig.layout, 8)
+colgap!(fig.layout, 8)
 
 fig
 

@@ -10,7 +10,7 @@ N_total_params =
     sum(1 - v for v in values(fixed_individual_params)) * N +
     sum(1 - v for v in values(fixed_shared_params))
 
-dataset_id = 2
+dataset_id = 20
 
 dfs = [
     DataFrame(CSV.File(results_dir("sim_samples/dataset_$dataset_id/samples_$i.csv"))) for i in 1:3
