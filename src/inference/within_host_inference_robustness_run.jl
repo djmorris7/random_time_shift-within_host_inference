@@ -342,7 +342,7 @@ end
 
 ##
 
-thin = 4
+thin = 1
 burnin = 20000
 # burnin = 1
 num_samples = 100_000
