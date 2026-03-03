@@ -1,6 +1,9 @@
-# within_host_inference
+# random_time_shift-within_host_inference
 
-This repository contains the code to run the within-host inference for viral dynamics models using the random time-shift approximation. This supports our paper titled *Random time-shift approximation enables hierarchical Bayesian inference of mechanistic within-host viral dynamics models on large datasets*. The data is provided in the `data` folder.
+Code supporting our manuscript: 
+> Dylan J. Morris, Lauren Kennedy, Andrew J. Black, 2025. Random time-shift approximation enables hierarchical Bayesian inference of mechanistic within-host viral dynamics models on large datasets. PLoS Computational Biology 20(12): e1013775. 10.1371/journal.pcbi.1013775.
+
+The data is provided in the `data` folder.
 
 ## Setup and installation
 
